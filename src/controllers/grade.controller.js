@@ -357,7 +357,7 @@ const getPaperExamSheet = asyncHandler(async (req, res) => {
 
   const students = await User
     .find({ role:'student', academicYear:year, isActive:true })
-    .select('_id name codePlain group')
+    .select('_id name codePlain studentId group')
     .populate('group','name')
     .sort({ name:1 }).lean();
 

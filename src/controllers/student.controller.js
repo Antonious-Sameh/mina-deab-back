@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const User     = require('../models/User');
 const Group    = require('../models/Group');
 const { generateStudentCode, generateResetCode } = require('../utils/generateCode');
+const { generateStudentId } = require('../utils/studentId');
 const { paginate }    = require('../utils/paginate');
 const { success, created, notFound, error } = require('../utils/apiResponse');
 const { asyncHandler } = require('../middleware/error.middleware');
@@ -46,10 +47,12 @@ const createStudent = asyncHandler(async (req, res) => {
       return error(res, 'المجموعة لا تنتمي لهذه السنة الدراسية', 400);
   }
   const plainCode = await generateStudentCode();
+  const newStudentId = await generateStudentId(academicYear);
   const student = await User.create({
     name, codePlain: plainCode, role: 'student',
     academicYear, group: group || null,
     phone: phone || null, parentPhone: parentPhone || null,
+    studentId: newStudentId,
   });
   await student.populate('group', 'name academicYear');
   return created(res, { student: student.toSafeObject(), plainCode },

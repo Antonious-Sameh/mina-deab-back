@@ -76,6 +76,14 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
+    // Stable, permanent numeric ID shown to the teacher — unique within the
+    // student's own academic year only (may repeat across different years).
+    // Auto-generated once on creation and never changes afterwards.
+    studentId: {
+      type:    Number,
+      default: null,
+    },
+
     parentPhone: {
       type:    String,
       trim:    true,
@@ -106,6 +114,15 @@ const userSchema = new mongoose.Schema(
 userSchema.index({ role: 1, academicYear: 1 });
 userSchema.index({ group: 1 });
 // codePlain already has unique: true → automatic index
+
+// studentId must be unique within its academic year, but many documents
+// (teachers, or students not yet backfilled) have studentId === null —
+// a partial index only enforces uniqueness where studentId is an actual
+// number, so those null documents never collide with each other.
+userSchema.index(
+  { academicYear: 1, studentId: 1 },
+  { unique: true, partialFilterExpression: { studentId: { $type: 'number' } } }
+);
 
 // ── Virtual: academic year label ──────────────────────────────────────────────
 const YEAR_LABELS = {

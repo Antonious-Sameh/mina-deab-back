@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "seed": "node src/utils/seed.js"
+    "seed": "node src/utils/seed.js",
+    "backfill-student-ids": "node src/utils/backfillStudentIds.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
