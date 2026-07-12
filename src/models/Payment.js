@@ -52,6 +52,16 @@ const paymentSchema = new mongoose.Schema(
       trim:     true,
     },
 
+    // Optional link to the manageable Month ("الحضور والفلوس" flow) this
+    // payment belongs to. Purely additive: old payment records (created
+    // before Months existed) simply keep monthRef === null and work exactly
+    // as before everywhere else (student payments page, reports, ...).
+    monthRef: {
+      type:    mongoose.Schema.Types.ObjectId,
+      ref:     'Month',
+      default: null,
+    },
+
     // Total amount required for this month
     requiredAmount: {
       type:     Number,

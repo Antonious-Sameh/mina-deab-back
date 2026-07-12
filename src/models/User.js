@@ -11,7 +11,7 @@ const mongoose = require('mongoose');
 const bcrypt   = require('bcryptjs');
 
 const ACADEMIC_YEARS = [
-  'first-prep', 'second-prep', 'third-prep', 'first-sec', 'second-sec',
+  'first-prep', 'second-prep', 'third-prep', 'first-sec', 'second-sec', 'third-sec',
 ];
 
 const userSchema = new mongoose.Schema(
@@ -131,6 +131,7 @@ const YEAR_LABELS = {
   'third-prep':  'الصف الثالث الإعدادي',
   'first-sec':   'الصف الأول الثانوي',
   'second-sec':  'الصف الثاني الثانوي',
+  'third-sec':   'الصف الثالث الثانوي',
 };
 
 userSchema.virtual('academicYearLabel').get(function () {

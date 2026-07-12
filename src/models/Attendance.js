@@ -32,6 +32,16 @@ const attendanceSchema = new mongoose.Schema(
       required: [true, 'حالة الحضور مطلوبة'],
     },
 
+    // Optional link to the "حصة" (ClassSession) this record was taken in —
+    // added for the new "الحضور والفلوس" flow. Purely additive: existing
+    // records (and the student history / reports pages that read this
+    // collection) keep working exactly as before, with session === null.
+    session: {
+      type:    mongoose.Schema.Types.ObjectId,
+      ref:     'ClassSession',
+      default: null,
+    },
+
     // Optional note e.g. "غياب بعذر"
     note: {
       type:    String,

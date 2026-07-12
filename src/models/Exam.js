@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const ACADEMIC_YEARS = ['first-prep','second-prep','third-prep','first-sec','second-sec'];
+const ACADEMIC_YEARS = ['first-prep','second-prep','third-prep','first-sec','second-sec','third-sec'];
 
 const questionSchema = new mongoose.Schema({
   text:          { type: String, required: true, trim: true },

@@ -2,7 +2,7 @@
 // Backward-compatible: legacy videoUrl/fileUrl fields still work
 
 const mongoose = require('mongoose');
-const ACADEMIC_YEARS = ['first-prep','second-prep','third-prep','first-sec','second-sec'];
+const ACADEMIC_YEARS = ['first-prep','second-prep','third-prep','first-sec','second-sec','third-sec'];
 
 // ── Content item sub-schema ───────────────────────────────────────────────────
 const contentItemSchema = new mongoose.Schema({

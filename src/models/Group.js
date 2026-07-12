@@ -10,6 +10,7 @@ const ACADEMIC_YEARS = [
   'third-prep',
   'first-sec',
   'second-sec',
+  'third-sec',
 ];
 
 const DAYS_OF_WEEK = [

@@ -18,6 +18,8 @@ const studentRoutes     = require('./routes/student.routes');
 const groupRoutes       = require('./routes/group.routes');
 const attendanceRoutes  = require('./routes/attendance.routes');
 const paymentRoutes     = require('./routes/payment.routes');
+const monthRoutes       = require('./routes/month.routes');
+const sessionRoutes     = require('./routes/session.routes');
 const examRoutes        = require('./routes/exam.routes');
 const gradeRoutes       = require('./routes/grade.routes');
 const pointRoutes       = require('./routes/point.routes');
@@ -87,6 +89,10 @@ app.use('/api/auth', authLimiter, authRoutes);
 // Teacher-only routes (protect + isTeacher applied per-router or per-route)
 app.use('/api/students',   protect, isTeacher, studentRoutes);
 app.use('/api/groups',     protect, isTeacher, groupRoutes);
+
+// "الحضور والفلوس" الجديدة — الشهور والحصص القابلة للإدارة داخل كل مجموعة
+app.use('/api/months',     protect, isTeacher, monthRoutes);
+app.use('/api/sessions',   protect, isTeacher, sessionRoutes);
 
 // الروتس المشتركة والمحمية بـ protect المرتبة والمدعومة بالتحديثات الجديدة
 app.use('/api/attendance', protect, attendanceRoutes);  // مختلط: المدرس يكتب، والطالب يقرأ

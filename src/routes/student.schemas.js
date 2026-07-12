@@ -9,6 +9,7 @@ const ACADEMIC_YEARS = [
   'third-prep',
   'first-sec',
   'second-sec',
+  'third-sec',
 ];
 
 const OBJECT_ID = Joi.string().pattern(/^[0-9a-fA-F]{24}$/).messages({

@@ -4,7 +4,7 @@
 const Joi = require('joi');
 
 const ACADEMIC_YEARS = [
-  'first-prep', 'second-prep', 'third-prep', 'first-sec', 'second-sec',
+  'first-prep', 'second-prep', 'third-prep', 'first-sec', 'second-sec', 'third-sec',
 ];
 
 const OBJECT_ID = Joi.string()
