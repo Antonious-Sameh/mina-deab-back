@@ -22,7 +22,7 @@ const getExamGrades = asyncHandler(async (req, res) => {
   // All students in the same academic year
   const students = await User
     .find({ role: 'student', academicYear: exam.academicYear, isActive: true })
-    .select('_id name codePlain group')
+    .select('_id name codePlain studentId group')
     .populate('group', 'name')
     .sort({ name: 1 })
     .lean();

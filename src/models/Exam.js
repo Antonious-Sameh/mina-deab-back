@@ -22,6 +22,16 @@ const examSchema = new mongoose.Schema({
   // NEW: exam type
   examType: { type: String, enum: ['electronic','paper'], default: 'electronic' },
 
+  // Groups paper exams into named folders (e.g. "مسابقة 1", "شهر أكتوبر").
+  // Only meaningful for examType === 'paper' — electronic exams leave this
+  // null. Purely additive: existing exams simply have section === null and
+  // are shown as "بدون قسم" until the teacher assigns one.
+  section: {
+    type:    mongoose.Schema.Types.ObjectId,
+    ref:     'PaperExamSection',
+    default: null,
+  },
+
   // Electronic exam fields
   questions: [questionSchema],
 

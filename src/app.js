@@ -21,6 +21,7 @@ const paymentRoutes     = require('./routes/payment.routes');
 const monthRoutes       = require('./routes/month.routes');
 const sessionRoutes     = require('./routes/session.routes');
 const examRoutes        = require('./routes/exam.routes');
+const paperExamSectionRoutes = require('./routes/paperExamSection.routes');
 const gradeRoutes       = require('./routes/grade.routes');
 const pointRoutes       = require('./routes/point.routes');
 const noteRoutes        = require('./routes/note.routes');
@@ -98,6 +99,7 @@ app.use('/api/sessions',   protect, isTeacher, sessionRoutes);
 app.use('/api/attendance', protect, attendanceRoutes);  // مختلط: المدرس يكتب، والطالب يقرأ
 app.use('/api/payments',   protect, paymentRoutes);     // الـ isTeacher مطبق داخلياً لكل route
 app.use('/api/exams',      protect, examRoutes);        // مختلط: امتحانات، تسليم، ونتائج أوراق الإجابة
+app.use('/api/paper-exam-sections', protect, isTeacher, paperExamSectionRoutes); // أقسام الامتحانات الورقية
 app.use('/api/grades',     protect, gradeRoutes);       // درجات الطلاب والتقييمات
 app.use('/api/points',     protect, pointRoutes);       // نقاط ومكافآت الطلاب
 app.use('/api/notes',      protect, noteRoutes);        // ملاحظات وإشعارات المقروء وغير المقروء

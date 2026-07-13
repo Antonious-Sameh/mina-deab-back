@@ -3,6 +3,8 @@
 const Exam           = require('../models/Exam');
 const ExamSubmission = require('../models/ExamSubmission');
 const User           = require('../models/User');
+const PaperExamSection = require('../models/PaperExamSection');
+const { findOrCreateSection } = require('./paperExamSection.controller');
 const { cloudinary, uploadPDF } = require('../config/multer');
 const { success, created, notFound, error: apiError } = require('../utils/apiResponse');
 const { asyncHandler } = require('../middleware/error.middleware');
@@ -52,7 +54,7 @@ const getExams = asyncHandler(async (req, res) => {
   if (year)   filter.academicYear = year;
   if (status) filter.status = status;
 
-  const exams = await Exam.find(filter).sort({ examDate: -1, createdAt: -1 }).lean();
+  const exams = await Exam.find(filter).populate('section', 'name').sort({ examDate: -1, createdAt: -1 }).lean();
 
   // Attach submission count per exam
   const examIds = exams.map(e => e._id);
@@ -71,14 +73,14 @@ const getExams = asyncHandler(async (req, res) => {
 
 // ── GET /api/exams/:id ────────────────────────────────────────────────────────
 const getExam = asyncHandler(async (req, res) => {
-  const exam = await Exam.findById(req.params.id).lean();
+  const exam = await Exam.findById(req.params.id).populate('section', 'name').lean();
   if (!exam) return notFound(res, 'الامتحان غير موجود');
   return success(res, { exam });
 });
 
 // ── POST /api/exams ───────────────────────────────────────────────────────────
 const createExam = asyncHandler(async (req, res) => {
-  const { title, academicYear, description, examDate, duration, status, questions, examType, maxScore } = req.body;
+  const { title, academicYear, description, examDate, duration, status, questions, examType, maxScore, sectionId, sectionName } = req.body;
   const type = examType || 'electronic';
 
   // Validate electronic exam questions
@@ -94,12 +96,27 @@ const createExam = asyncHandler(async (req, res) => {
     }
   }
 
+  // Section only applies to paper exams — resolve an existing section id,
+  // or find-or-create one from a freely-typed name.
+  let section = null;
+  if (type === 'paper') {
+    if (sectionId) {
+      const found = await PaperExamSection.findById(sectionId).lean();
+      if (!found) return apiError(res, 'القسم غير موجود', 400);
+      section = found._id;
+    } else if (sectionName?.trim()) {
+      const found = await findOrCreateSection(academicYear, sectionName);
+      section = found._id;
+    }
+  }
+
   const exam = await Exam.create({
     title, academicYear, description: description || null,
     examDate:  examDate  || null,
     duration:  duration  || null,
     status:    status    || 'draft',
     examType:  type,
+    section,
     questions: type === 'electronic' ? (questions || []) : [],
     maxScore:  type === 'paper' ? (Number(maxScore) || 0) : 0,
     createdBy: req.user.userId,
@@ -113,7 +130,7 @@ const updateExam = asyncHandler(async (req, res) => {
   const exam = await Exam.findById(req.params.id);
   if (!exam) return notFound(res, 'الامتحان غير موجود');
 
-  const { title, academicYear, description, examDate, duration, status, questions } = req.body;
+  const { title, academicYear, description, examDate, duration, status, questions, sectionId, sectionName } = req.body;
 
   if (questions !== undefined) {
     for (let i = 0; i < questions.length; i++) {
@@ -133,6 +150,22 @@ const updateExam = asyncHandler(async (req, res) => {
   if (examDate    !== undefined) exam.examDate    = examDate || null;
   if (duration    !== undefined) exam.duration    = duration || null;
   if (status      !== undefined) exam.status      = status;
+
+  // Section only applies to paper exams
+  if (exam.examType === 'paper') {
+    if (sectionId !== undefined) {
+      if (sectionId === null || sectionId === '') {
+        exam.section = null;
+      } else {
+        const found = await PaperExamSection.findById(sectionId).lean();
+        if (!found) return apiError(res, 'القسم غير موجود', 400);
+        exam.section = found._id;
+      }
+    } else if (sectionName?.trim()) {
+      const found = await findOrCreateSection(exam.academicYear, sectionName);
+      exam.section = found._id;
+    }
+  }
 
   await exam.save();
   return success(res, { exam }, 'تم تعديل الامتحان بنجاح');
