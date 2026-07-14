@@ -38,14 +38,7 @@ const getStudent = asyncHandler(async (req, res) => {
 });
 
 const createStudent = asyncHandler(async (req, res) => {
-  const { name, academicYear, group, phone, parentPhone, studentId } = req.body;
-
-  if (studentId === undefined || studentId === null || String(studentId).trim() === '')
-    return error(res, 'ID الطالب مطلوب', 400);
-
-  const numericId = Number(studentId);
-  if (!Number.isFinite(numericId))
-    return error(res, 'ID الطالب يجب أن يكون رقمًا', 400);
+  const { name, academicYear, group, phone, parentPhone } = req.body;
 
   if (group) {
     const grp = await Group.findById(group).lean();
@@ -54,17 +47,13 @@ const createStudent = asyncHandler(async (req, res) => {
       return error(res, 'المجموعة لا تنتمي لهذه السنة الدراسية', 400);
   }
 
-  // فريد داخل نفس السنة الدراسية فقط — ينفع يتكرر في سنة تانية، أو لو
-  // الطالب القديم اللي كان واخده اتحذف
-  const duplicate = await User.findOne({ role: 'student', academicYear, studentId: numericId }).lean();
-  if (duplicate) return error(res, 'هذا الـ ID مستخدم بالفعل داخل هذه السنة الدراسية.', 400);
-
   const plainCode = await generateStudentCode();
   const student = await User.create({
     name, codePlain: plainCode, role: 'student',
     academicYear, group: group || null,
     phone: phone || null, parentPhone: parentPhone || null,
-    studentId: numericId,
+    // الـ ID مش بيتحدد وقت الإنشاء دلوقتي — المدرس بيكتبه بعد كده من جدول
+    // الطلاب (studentId يفضل null لحد ما يتحدد يدوياً)
   });
   await student.populate('group', 'name academicYear');
   return created(res, { student: student.toSafeObject(), plainCode },
@@ -72,7 +61,7 @@ const createStudent = asyncHandler(async (req, res) => {
 });
 
 const updateStudent = asyncHandler(async (req, res) => {
-  const { name, academicYear, group, phone, parentPhone, isActive } = req.body;
+  const { name, academicYear, group, phone, parentPhone, isActive, studentId } = req.body;
   const student = await User.findOne({ _id: req.params.id, role: 'student' });
   if (!student) return notFound(res, 'الطالب غير موجود');
   if (group && academicYear) {
@@ -81,6 +70,30 @@ const updateStudent = asyncHandler(async (req, res) => {
     if (grp.academicYear !== academicYear)
       return error(res, 'المجموعة لا تنتمي لهذه السنة الدراسية', 400);
   }
+
+  // الـ ID قابل للتعديل في أي وقت من جدول الطلاب — لازم يكون فريد داخل
+  // نفس السنة الدراسية فقط (نتجاهل الطالب نفسه في فحص التكرار)
+  if (studentId !== undefined) {
+    if (studentId === null || String(studentId).trim() === '') {
+      student.studentId = null;
+    } else {
+      const numericId = Number(studentId);
+      if (!Number.isFinite(numericId))
+        return error(res, 'ID الطالب يجب أن يكون رقمًا', 400);
+
+      const yearToCheck = academicYear !== undefined ? academicYear : student.academicYear;
+      const duplicate = await User.findOne({
+        _id: { $ne: student._id },
+        role: 'student',
+        academicYear: yearToCheck,
+        studentId: numericId,
+      }).lean();
+      if (duplicate) return error(res, 'هذا الـ ID مستخدم بالفعل داخل هذه السنة الدراسية.', 400);
+
+      student.studentId = numericId;
+    }
+  }
+
   if (name         !== undefined) student.name         = name;
   if (academicYear !== undefined) student.academicYear = academicYear;
   if (group        !== undefined) student.group        = group || null;
