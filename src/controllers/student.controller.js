@@ -2,7 +2,6 @@ const mongoose = require('mongoose');
 const User     = require('../models/User');
 const Group    = require('../models/Group');
 const { generateStudentCode, generateResetCode } = require('../utils/generateCode');
-const { generateStudentId } = require('../utils/studentId');
 const { paginate }    = require('../utils/paginate');
 const { success, created, notFound, error } = require('../utils/apiResponse');
 const { asyncHandler } = require('../middleware/error.middleware');
@@ -39,20 +38,33 @@ const getStudent = asyncHandler(async (req, res) => {
 });
 
 const createStudent = asyncHandler(async (req, res) => {
-  const { name, academicYear, group, phone, parentPhone } = req.body;
+  const { name, academicYear, group, phone, parentPhone, studentId } = req.body;
+
+  if (studentId === undefined || studentId === null || String(studentId).trim() === '')
+    return error(res, 'ID الطالب مطلوب', 400);
+
+  const numericId = Number(studentId);
+  if (!Number.isFinite(numericId))
+    return error(res, 'ID الطالب يجب أن يكون رقمًا', 400);
+
   if (group) {
     const grp = await Group.findById(group).lean();
     if (!grp) return notFound(res, 'المجموعة غير موجودة');
     if (grp.academicYear !== academicYear)
       return error(res, 'المجموعة لا تنتمي لهذه السنة الدراسية', 400);
   }
+
+  // فريد داخل نفس السنة الدراسية فقط — ينفع يتكرر في سنة تانية، أو لو
+  // الطالب القديم اللي كان واخده اتحذف
+  const duplicate = await User.findOne({ role: 'student', academicYear, studentId: numericId }).lean();
+  if (duplicate) return error(res, 'هذا الـ ID مستخدم بالفعل داخل هذه السنة الدراسية.', 400);
+
   const plainCode = await generateStudentCode();
-  const newStudentId = await generateStudentId(academicYear);
   const student = await User.create({
     name, codePlain: plainCode, role: 'student',
     academicYear, group: group || null,
     phone: phone || null, parentPhone: parentPhone || null,
-    studentId: newStudentId,
+    studentId: numericId,
   });
   await student.populate('group', 'name academicYear');
   return created(res, { student: student.toSafeObject(), plainCode },
