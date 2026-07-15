@@ -43,6 +43,7 @@ const updateStudentSchema = Joi.object({
   phone:        Joi.string().pattern(/^01[0-9]{9}$/).allow(null, ''),
   parentPhone:  Joi.string().pattern(/^01[0-9]{9}$/).allow(null, ''),
   isActive:     Joi.boolean(),
+  studentId:    Joi.alternatives().try(Joi.number(), Joi.string().allow('')).allow(null),
 }).min(1).messages({
   'object.min': 'يجب إرسال حقل واحد على الأقل للتعديل',
 });
