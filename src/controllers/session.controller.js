@@ -91,7 +91,7 @@ const getSessionSheet = asyncHandler(async (req, res) => {
   const studentIds = students.map((s) => s._id);
 
   const [attRecords, payRecords] = await Promise.all([
-    Attendance.find({ student: { $in: studentIds }, date: session.date }).select('student status').lean(),
+    Attendance.find({ student: { $in: studentIds }, session: session._id }).select('student status').lean(),
     Payment.find({ student: { $in: studentIds }, month: month?.name }).select('student requiredAmount paidAmount').lean(),
   ]);
 
@@ -124,9 +124,11 @@ const getSessionSheet = asyncHandler(async (req, res) => {
 // ── POST /api/sessions/:id/attendance ──────────────────────────────────────────
 // Body: { records: [{ studentId, status }] }
 // Upserts into the SAME Attendance collection used everywhere else in the
-// app (student history, group stats, reports) — keyed by the session's date,
-// exactly like the original day-based attendance flow — plus a `session`
-// link for the new session-scoped views.
+// app (student history, group stats, reports). Each حصة (ClassSession) gets
+// its OWN independent record per student — matched by `session`, not by
+// `date` — so two حصص that happen to fall on the same calendar date never
+// share or overwrite each other's attendance. The date is still stored on
+// the record so student history / group stats keep working exactly as before.
 const submitAttendance = asyncHandler(async (req, res) => {
   const session = await ClassSession.findById(req.params.id);
   if (!session) return notFound(res, 'الحصة غير موجودة');
@@ -136,7 +138,7 @@ const submitAttendance = asyncHandler(async (req, res) => {
 
   const ops = records.map(({ studentId, status }) => ({
     updateOne: {
-      filter: { student: studentId, date: session.date },
+      filter: { student: studentId, session: session._id },
       update: {
         $set: {
           student:    studentId,

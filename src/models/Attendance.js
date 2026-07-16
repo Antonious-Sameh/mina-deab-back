@@ -64,8 +64,23 @@ const attendanceSchema = new mongoose.Schema(
 
 // ── Indexes ───────────────────────────────────────────────────────────────────
 
-// Prevent duplicate attendance for same student on same day
-attendanceSchema.index({ student: 1, date: 1 }, { unique: true });
+// Legacy day-based flow (no session link, e.g. /attendance/bulk): still exactly
+// one record per student per date, same as before — this only applies to
+// documents where session is null, so it does NOT affect the session-scoped
+// flow below.
+attendanceSchema.index(
+  { student: 1, date: 1 },
+  { unique: true, partialFilterExpression: { session: null } }
+);
+
+// Session-scoped flow (الحضور والفلوس / حصص): exactly one record per student
+// per حصة (ClassSession), completely independent of the calendar date. This is
+// what makes each حصة have its own attendance instead of sharing/overwriting
+// another حصة that happens to fall on the same date.
+attendanceSchema.index(
+  { student: 1, session: 1 },
+  { unique: true, partialFilterExpression: { session: { $type: 'objectId' } } }
+);
 
 // Fast lookup: all attendance for a group on a date (for kashf)
 attendanceSchema.index({ group: 1, date: 1 });
