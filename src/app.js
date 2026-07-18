@@ -30,8 +30,11 @@ const heroRoutes    = require('./routes/hero.routes');
 require('./models/HeroAlbum'); // register HeroAlbum model
 const studentSelfRoutes = require('./routes/studentSelf.routes');
 const accountRoutes     = require('./routes/account.routes');
+const compression = require('compression');
 
 const app = express();
+
+app.use(compression());
 
 // ── Security ──────────────────────────────────────────────────────────────────
 app.use(helmet());
