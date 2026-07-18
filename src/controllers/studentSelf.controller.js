@@ -182,38 +182,42 @@ const getMyPoints = asyncHandler(async (req, res) => {
   const { page = 1, limit = 20 } = req.query;
 
   const skip  = (Number(page) - 1) * Number(limit);
-  const total = await Point.countDocuments({ student: studentId });
 
-  const transactions = await Point
-    .find({ student: studentId })
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(Number(limit))
-    .lean();
-
-  const balanceAgg = await Point.aggregate([
-    { $match: { student: new mongoose.Types.ObjectId(studentId) } },
-    {
-      $group: {
-        _id: null,
-        balance: {
-          $sum: {
-            $cond: [
-              { $eq: ['$type', 'add'] },
-              '$amount',
-              { $multiply: ['$amount', -1] },
-            ],
+  // These four reads are independent of each other, so run them concurrently
+  // instead of one-by-one — same queries, same results, less total wait time.
+  const [total, transactions, balanceAgg, me] = await Promise.all([
+    Point.countDocuments({ student: studentId }),
+    Point
+      .find({ student: studentId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit))
+      .lean(),
+    Point.aggregate([
+      { $match: { student: new mongoose.Types.ObjectId(studentId) } },
+      {
+        $group: {
+          _id: null,
+          balance: {
+            $sum: {
+              $cond: [
+                { $eq: ['$type', 'add'] },
+                '$amount',
+                { $multiply: ['$amount', -1] },
+              ],
+            },
           },
         },
       },
-    },
+    ]),
+    User.findById(studentId).select('academicYear').lean(),
   ]);
 
   // Also compute rank in leaderboard
-  const allStudents = await User.find({ 
-    role: 'student', 
-    academicYear: (await User.findById(studentId).select('academicYear').lean())?.academicYear, 
-    isActive: true 
+  const allStudents = await User.find({
+    role: 'student',
+    academicYear: me?.academicYear,
+    isActive: true,
   }).select('_id').lean();
 
   const allBalances = await Point.aggregate([
@@ -247,31 +251,38 @@ const getMyRank = asyncHandler(async (req, res) => {
 
   const year = student.academicYear;
 
-  // ── Scores from electronic exams (ExamSubmission) ────────────────────────
-  const electronicExams = await Exam.find({
-    academicYear: year, status: { $ne: 'draft' },
-    $or: [{ examType: 'electronic' }, { examType: { $exists: false } }],
-  }).select('_id maxScore').lean();
+  // electronicExams and allStudents both only depend on `year`, so fetch them
+  // concurrently instead of one after the other.
+  const [electronicExams, allStudents] = await Promise.all([
+    Exam.find({
+      academicYear: year, status: { $ne: 'draft' },
+      $or: [{ examType: 'electronic' }, { examType: { $exists: false } }],
+    }).select('_id maxScore').lean(),
+    User.find({ role: 'student', academicYear: year, isActive: true }).select('_id').lean(),
+  ]);
 
-  const myElecSubs = await ExamSubmission.find({
-    exam: { $in: electronicExams.map(e=>e._id) }, student: req.user.userId,
-  }).select('exam score').lean();
+  const examIds = electronicExams.map(e => e._id);
+
+  // myElecSubs and allSubs both only depend on examIds, so fetch them
+  // concurrently instead of one after the other.
+  const [myElecSubs, allSubs] = await Promise.all([
+    ExamSubmission.find({
+      exam: { $in: examIds }, student: req.user.userId,
+    }).select('exam score').lean(),
+    ExamSubmission.find({
+      exam: { $in: examIds },
+    }).select('student exam score').lean(),
+  ]);
 
   const myElecScore = myElecSubs.reduce((s,x)=>s+x.score,0);
   const myElecMax   = electronicExams.reduce((s,e)=>s+(e.maxScore||0),0);
 
   // ── All students' electronic scores for ranking ───────────────────────────
-  const allSubs = await ExamSubmission.find({
-    exam: { $in: electronicExams.map(e=>e._id) },
-  }).select('student exam score').lean();
-
   const elecMap = new Map();
   allSubs.forEach(s => {
     const cur = elecMap.get(s.student.toString()) || 0;
     elecMap.set(s.student.toString(), cur + s.score);
   });
-
-  const allStudents = await User.find({ role:'student', academicYear:year, isActive:true }).select('_id').lean();
 
   const sorted = allStudents
     .map(s => ({ id:s._id.toString(), score: elecMap.get(s._id.toString())||0 }))

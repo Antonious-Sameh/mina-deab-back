@@ -38,16 +38,18 @@ const addPoint = asyncHandler(async (req, res) => {
   const student = await User.findOne({ _id: studentId, role: 'student' }).lean();
   if (!student) return notFound(res, 'الطالب غير موجود');
 
+  // Fetch current balance once — used both for the negative-balance guard
+  // (remove only) and to compute the post-insert balance analytically below,
+  // instead of re-aggregating all points again after the insert.
+  const current = await calcBalance(studentId);
+
   // Guard: don't let balance go negative
-  if (type === 'remove') {
-    const current = await calcBalance(studentId);
-    if (amount > current.balance) {
-      return error(
-        res,
-        `لا يمكن خصم ${amount} نقطة — الرصيد الحالي: ${current.balance} نقطة`,
-        400
-      );
-    }
+  if (type === 'remove' && amount > current.balance) {
+    return error(
+      res,
+      `لا يمكن خصم ${amount} نقطة — الرصيد الحالي: ${current.balance} نقطة`,
+      400
+    );
   }
 
   const point = await Point.create({
@@ -58,7 +60,15 @@ const addPoint = asyncHandler(async (req, res) => {
     createdBy: req.user.userId,
   });
 
-  const balance = await calcBalance(studentId);
+  // Derive the new balance from the known current balance + this single new
+  // point, instead of re-running the full aggregation — same result, fewer queries.
+  const balance = {
+    balance: current.balance + (type === 'add' ? amount : -amount),
+    total:   current.total + 1,
+    added:   current.added   + (type === 'add'    ? amount : 0),
+    removed: current.removed + (type === 'remove' ? amount : 0),
+  };
+
 
   return created(res, { point, balance }, `تم ${type === 'add' ? 'إضافة' : 'خصم'} ${amount} نقطة بنجاح`);
 });
