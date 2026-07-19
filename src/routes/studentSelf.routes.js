@@ -6,6 +6,7 @@ const router  = express.Router();
 
 const {
   getMe,
+  getMySchedule,
   getMyAttendance,
   getMyPayments,
   getMyGrades,
@@ -18,6 +19,9 @@ const {
 
 // GET /api/student/me
 router.get('/me', getMe);
+
+// GET /api/student/schedule
+router.get('/schedule', getMySchedule);
 
 // GET /api/student/attendance?from=&to=&page=&limit=
 router.get('/attendance', getMyAttendance);

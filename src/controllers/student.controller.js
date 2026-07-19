@@ -47,6 +47,17 @@ const createStudent = asyncHandler(async (req, res) => {
       return error(res, 'المجموعة لا تنتمي لهذه السنة الدراسية', 400);
   }
 
+  // منع تكرار اسم الطالب داخل نفس السنة الدراسية (مسموح تكرار الاسم في سنوات مختلفة)
+  const trimmedName = (name || '').trim();
+  const duplicate = await User.findOne({
+    role: 'student',
+    academicYear,
+    name: trimmedName,
+  }).lean();
+  if (duplicate) {
+    return error(res, 'هذا الطالب موجود بالفعل.', 400);
+  }
+
   const plainCode = await generateStudentCode();
   const student = await User.create({
     name, codePlain: plainCode, role: 'student',

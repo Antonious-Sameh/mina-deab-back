@@ -4,6 +4,7 @@
 
 const mongoose  = require('mongoose');
 const User      = require('../models/User');
+const Group     = require('../models/Group');
 const Attendance= require('../models/Attendance');
 const Payment   = require('../models/Payment');
 const Grade     = require('../models/Grade');
@@ -28,6 +29,28 @@ const getMe = asyncHandler(async (req, res) => {
   delete student.refreshToken;
 
   return success(res, { student });
+});
+
+// ── GET /api/student/schedule ─────────────────────────────────────────────────
+// Returns the real schedule (day + time) of the group the student is actually
+// assigned to (Group.schedule), instead of any placeholder/demo data.
+const getMySchedule = asyncHandler(async (req, res) => {
+  const student = await User.findById(req.user.userId).select('group').lean();
+  if (!student) return notFound(res, 'المستخدم غير موجود');
+
+  if (!student.group) {
+    return success(res, { group: null, schedule: [] });
+  }
+
+  const group = await Group.findById(student.group).select('name academicYear schedule').lean();
+  if (!group) {
+    return success(res, { group: null, schedule: [] });
+  }
+
+  return success(res, {
+    group: { _id: group._id, name: group.name, academicYear: group.academicYear },
+    schedule: group.schedule || [],
+  });
 });
 
 // ── GET /api/student/attendance ───────────────────────────────────────────────
@@ -412,6 +435,7 @@ const getMyReport = asyncHandler(async (req, res) => {
 
 module.exports = {
   getMe,
+  getMySchedule,
   getMyAttendance,
   getMyPayments,
   getMyGrades,
