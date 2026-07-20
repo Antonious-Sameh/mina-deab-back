@@ -132,23 +132,44 @@ const getMyGrades = asyncHandler(async (req, res) => {
   // ── 1. Manual grades entered by teacher (electronic-exam manual entries + paper exams) ──
   const manualGradesRaw = await Grade
     .find({ student: studentId })
-    .populate('exam', 'title maxScore examDate academicYear status')
+    .populate({
+      path: 'exam',
+      select: 'title maxScore examDate academicYear status examType section',
+      populate: { path: 'section', select: 'name' },
+    })
     .sort({ createdAt: -1 })
     .lean();
 
+  // Drafts are invisible to students everywhere else in the app (their own
+  // exam list only shows status:'published'), so a grade for a still-draft
+  // exam shouldn't surface here either — otherwise the student sees a grade
+  // for an exam that officially doesn't exist to them yet.
+  const visibleManualGradesRaw = manualGradesRaw.filter(g => g.exam?.status !== 'draft');
+
   // توحيد شكل البيانات للامتحانات الورقية والإلكترونية المدخلة يدويًا
-  const manualGrades = manualGradesRaw.map(g => {
-    const isPaper = g.examType === 'paper' || !g.exam;
+  //
+  // مهم: نوع الامتحان (ورقي/إلكتروني) لازم يتقرأ من مستند الامتحان الحقيقي
+  // (g.exam.examType) مش من حقل examType الموجود على Grade نفسه — الحقل ده
+  // معمول Legacy ومبيتحطش أبداً وقت إدخال الدرجة الفعلي (enterGrade/bulkEnterGrades)،
+  // فكان دايماً بيرجع القيمة الافتراضية 'electronic' حتى للامتحانات الورقية،
+  // وده كان بيخلي كل امتحان ورقي يظهر للطالب على إنه إلكتروني.
+  // بنستخدم g.examType (الحقل القديم) بس لو مفيش exam مرتبط أصلاً (بيانات قديمة
+  // جداً كانت بتتخزن بالطريقة القديمة من غير ربط بمستند Exam حقيقي).
+  const manualGrades = visibleManualGradesRaw.map(g => {
+    const exam = g.exam;
+    const isPaper = exam ? exam.examType === 'paper' : g.examType === 'paper';
     return {
-      _id:        g._id,
-      title:      isPaper ? (g.examTitle || 'امتحان ورقي') : (g.exam?.title || 'امتحان'),
-      examType:   isPaper ? 'paper' : 'electronic',
-      score:      g.score,
-      maxScore:   isPaper ? (g.maxScore || 0) : (g.exam?.maxScore || 0),
-      examDate:   g.exam?.examDate || null,
-      note:       g.note || null,
-      isAuto:     false,
-      createdAt:  g.createdAt,
+      _id:          g._id,
+      title:        exam ? exam.title : (g.examTitle || 'امتحان ورقي'),
+      examType:     isPaper ? 'paper' : 'electronic',
+      section:      exam?.section?.name || null,
+      academicYear: exam?.academicYear || null,
+      score:        g.score,
+      maxScore:     exam ? (exam.maxScore || 0) : (g.maxScore || 0),
+      examDate:     exam?.examDate || null,
+      note:         g.note || null,
+      isAuto:       false,
+      createdAt:    g.createdAt,
     };
   });
 
@@ -166,19 +187,21 @@ const getMyGrades = asyncHandler(async (req, res) => {
   );
 
   const autoGrades = submissions
-    .filter(s => s.exam && !manualExamIds.has(s.exam._id.toString()))
+    .filter(s => s.exam && s.exam.status !== 'draft' && !manualExamIds.has(s.exam._id.toString()))
     .map(s => ({
-      _id:        s._id,
-      title:      s.exam?.title || 'امتحان',
-      examType:   'electronic',
-      score:      s.score,
-      maxScore:   s.exam?.maxScore || 0,
-      examDate:   s.exam?.examDate || null,
-      note:       null,
-      isAuto:     true,
-      percentage: s.percentage,
-      submittedAt: s.submittedAt,
-      createdAt:  s.submittedAt,
+      _id:          s._id,
+      title:        s.exam?.title || 'امتحان',
+      examType:     'electronic',
+      section:      null, // إلكتروني — القسم مفهوم خاص بالامتحانات الورقية بس
+      academicYear: s.exam?.academicYear || null,
+      score:        s.score,
+      maxScore:     s.exam?.maxScore || 0,
+      examDate:     s.exam?.examDate || null,
+      note:         null,
+      isAuto:       true,
+      percentage:   s.percentage,
+      submittedAt:  s.submittedAt,
+      createdAt:    s.submittedAt,
     }));
 
   // ── 3. Merge both — sort by date desc ─────────────────────────────────────
@@ -186,7 +209,7 @@ const getMyGrades = asyncHandler(async (req, res) => {
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   const totalScore = allGrades.reduce((s, g) => s + (g.score || 0), 0);
-  const totalMax   = allGrades.reduce((s, g) => s + (g.exam?.maxScore || 0), 0);
+  const totalMax   = allGrades.reduce((s, g) => s + (g.maxScore || 0), 0);
 
   return success(res, {
     grades: allGrades,
