@@ -102,6 +102,23 @@ const userSchema = new mongoose.Schema(
       default: null,
       select:  false,
     },
+
+    // Previous refresh token hash + when it was rotated out — kept briefly so
+    // a duplicate/near-simultaneous refresh request using the just-replaced
+    // token (e.g. two requests racing right at rotation time, very common on
+    // mobile browsers where background tabs throttle timers and then fire a
+    // burst of delayed calls) doesn't get treated as session theft and force
+    // a false-positive logout. See compareRefreshToken() below.
+    previousRefreshToken: {
+      type:    String,
+      default: null,
+      select:  false,
+    },
+    refreshTokenRotatedAt: {
+      type:    Date,
+      default: null,
+      select:  false,
+    },
   },
   {
     timestamps: true,
@@ -158,13 +175,35 @@ userSchema.methods.compareCode = async function (enteredCode) {
 
 // ── Instance method: hash & store refresh token ───────────────────────────────
 userSchema.methods.setRefreshToken = async function (token) {
-  const salt       = await bcrypt.genSalt(10);
+  const salt = await bcrypt.genSalt(10);
+  // Keep the token being replaced around briefly (grace window), instead of
+  // discarding it immediately — see compareRefreshToken().
+  this.previousRefreshToken  = this.refreshToken || null;
+  this.refreshTokenRotatedAt = new Date();
   this.refreshToken = await bcrypt.hash(token, salt);
 };
 
+// Grace window during which a just-rotated-out refresh token is still
+// accepted — covers legitimate duplicate/racing refresh requests (e.g. a
+// proactive refresh and a reactive 401-triggered refresh firing close
+// together, or a mobile browser's throttled background timer delivering a
+// burst of delayed calls). A genuinely stale/stolen token presented after
+// this window still gets correctly rejected.
+const REFRESH_GRACE_MS = 15 * 1000;
+
 userSchema.methods.compareRefreshToken = async function (token) {
-  if (!this.refreshToken) return false;
-  return bcrypt.compare(token, this.refreshToken);
+  if (this.refreshToken && await bcrypt.compare(token, this.refreshToken)) {
+    return true;
+  }
+  if (
+    this.previousRefreshToken &&
+    this.refreshTokenRotatedAt &&
+    (Date.now() - this.refreshTokenRotatedAt.getTime()) < REFRESH_GRACE_MS &&
+    await bcrypt.compare(token, this.previousRefreshToken)
+  ) {
+    return true;
+  }
+  return false;
 };
 
 // ── Hide sensitive fields from JSON output ────────────────────────────────────

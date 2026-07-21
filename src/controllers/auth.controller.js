@@ -65,7 +65,7 @@ const refresh = asyncHandler(async (req, res) => {
     return unauthorized(res, 'انتهت الجلسة، يرجى تسجيل الدخول مجدداً');
   }
 
-  const user = await User.findById(decoded.userId).select('+refreshToken');
+  const user = await User.findById(decoded.userId).select('+refreshToken +previousRefreshToken +refreshTokenRotatedAt');
   if (!user || !user.isActive) {
     return unauthorized(res, 'المستخدم غير موجود أو غير نشط');
   }
