@@ -12,7 +12,7 @@ const { asyncHandler }          = require('../middleware/error.middleware');
 
 // ── POST /api/auth/login ──────────────────────────────────────────────────────
 const login = asyncHandler(async (req, res) => {
-  const { code } = req.body;
+  const { code, deviceId } = req.body;
 
   if (!code || typeof code !== 'string' || code.trim().length < 4) {
     return unauthorized(res, 'الكود مطلوب ويجب أن يكون 4 أحرف على الأقل');
@@ -35,10 +35,24 @@ const login = asyncHandler(async (req, res) => {
     return unauthorized(res, 'الكود غير صحيح');
   }
 
+  // ── Student single-device lock (teachers are never restricted) ────────────
+  // First login ever for this student → binds the account to that device.
+  // Any later login from a different device is rejected until the teacher
+  // resets it (see resetDevice in student.controller.js). If the client
+  // didn't send a deviceId at all (e.g. an older cached build), we don't
+  // enforce the check for that request rather than blocking a legitimate login.
+  if (user.role === 'student' && deviceId) {
+    if (!user.deviceId) {
+      user.deviceId = deviceId;
+    } else if (user.deviceId !== deviceId) {
+      return unauthorized(res, 'هذا الحساب مرتبط بجهاز آخر، برجاء التواصل مع المدرس');
+    }
+  }
+
   // Generate tokens
   const { accessToken, refreshToken } = generateTokenPair(user);
 
-  // Store hashed refresh token
+  // Store hashed refresh token (also persists deviceId set above, same document/save)
   await user.setRefreshToken(refreshToken);
   await user.save({ validateBeforeSave: false });
 

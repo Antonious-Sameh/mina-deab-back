@@ -90,6 +90,14 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
+    // Locks a STUDENT account to a single device/browser (see auth.controller.js
+    // login()). Never enforced for teachers. null = no device registered yet
+    // (next login binds it); reset to null by the teacher via resetDevice.
+    deviceId: {
+      type:    String,
+      default: null,
+    },
+
     // ── Teacher-only ──────────────────────────────────────────────────────────
     subjects: {
       type:    [String],

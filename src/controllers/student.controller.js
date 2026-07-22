@@ -166,6 +166,17 @@ const resetCode = asyncHandler(async (req, res) => {
     `تم إعادة تعيين كود الطالب — الكود الجديد: ${newPlainCode}`);
 });
 
+// إعادة تعيين الجهاز المرتبط بحساب الطالب — أول تسجيل دخول بعد كده هيربط
+// الحساب تلقائيًا بأي جهاز يُستخدم فيه.
+const resetDevice = asyncHandler(async (req, res) => {
+  const student = await User.findOne({ _id: req.params.id, role: 'student' });
+  if (!student) return notFound(res, 'الطالب غير موجود');
+  student.deviceId     = null;
+  student.refreshToken = null;
+  await student.save();
+  return success(res, {}, 'تم إعادة تعيين الجهاز — سيتم ربط الحساب بأول جهاز يسجل دخول بعد الآن');
+});
+
 const getStudentReport = asyncHandler(async (req, res) => {
   const { buildStudentReport } = require('../services/report.service');
   const student = await User
@@ -188,5 +199,5 @@ const getStudentsByYear = asyncHandler(async (req, res) => {
 
 module.exports = {
   getStudents, getStudent, createStudent, updateStudent,
-  deleteStudent, toggleStatus, resetCode, getStudentReport, getStudentsByYear,
+  deleteStudent, toggleStatus, resetCode, resetDevice, getStudentReport, getStudentsByYear,
 };
