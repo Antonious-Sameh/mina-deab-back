@@ -21,8 +21,9 @@ const getStudents = asyncHandler(async (req, res) => {
   }
   const result = await paginate(User, filter, {
     page, limit,
-    sort:     { academicYear: 1, name: 1 },
-    populate: [{ path: 'group', select: 'name academicYear' }],
+    sort:      { academicYear: 1, name: 1 },
+    collation: { locale: 'ar' },
+    populate:  [{ path: 'group', select: 'name academicYear' }],
   });
   return success(res, result);
 });

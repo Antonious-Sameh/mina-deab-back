@@ -10,6 +10,24 @@ const {
 const { success, unauthorized } = require('../utils/apiResponse');
 const { asyncHandler }          = require('../middleware/error.middleware');
 
+// بعض لوحات المفاتيح الافتراضية (خصوصًا على أجهزة زي الشاشات الذكية التفاعلية
+// لما نظام التشغيل يكون بلغة عربية) بترسل أرقام عربية-هندية أو فارسية بدل
+// الأرقام الإنجليزية العادية، رغم إن الرقم اللي المستخدم شايفه على الشاشة
+// هو نفسه بالظبط. النص المُرسَل يبقى مختلف تمامًا (Unicode code points مختلفة)
+// عن الكود المخزّن، فالمقارنة تفشل بشكل شرعي. بنحوّل أي أرقام من الشكلين دول
+// لأرقام إنجليزية عادية قبل أي مقارنة — نفس القيمة الرقمية بالظبط، بس بترميز موحّد.
+const ARABIC_INDIC_DIGITS  = '٠١٢٣٤٥٦٧٨٩'; // U+0660–U+0669
+const PERSIAN_DIGITS       = '۰۱۲۳۴۵۶۷۸۹'; // U+06F0–U+06F9
+function normalizeDigits(str) {
+  return str.replace(/[٠-٩۰-۹]/g, (ch) => {
+    const arabicIdx  = ARABIC_INDIC_DIGITS.indexOf(ch);
+    if (arabicIdx !== -1) return String(arabicIdx);
+    const persianIdx = PERSIAN_DIGITS.indexOf(ch);
+    if (persianIdx !== -1) return String(persianIdx);
+    return ch;
+  });
+}
+
 // ── POST /api/auth/login ──────────────────────────────────────────────────────
 const login = asyncHandler(async (req, res) => {
   const { code, deviceId } = req.body;
@@ -18,7 +36,7 @@ const login = asyncHandler(async (req, res) => {
     return unauthorized(res, 'الكود مطلوب ويجب أن يكون 4 أحرف على الأقل');
   }
 
-  const enteredCode = code.trim().toUpperCase();
+  const enteredCode = normalizeDigits(code.trim()).toUpperCase();
 
   // Fast lookup by codePlain (indexed) — no need to scan all users
   const user = await User
