@@ -110,4 +110,43 @@ const getTeacherInfo = asyncHandler(async (req, res) => {
   return success(res, { teacher: teacher || null });
 });
 
-module.exports = { getAccount, uploadAvatar: uploadAvatarCtrl, removeAvatar, changeCode, updateInfo, getTeacherInfo };
+// ── كلمة مرور الصفحات الخاصة (Admin Pages Password) ────────────────────────────
+// كلمة مرور إضافية بسيطة (نص عادي)، مستقلة تمامًا عن كود دخول المدرس، بيستخدمها
+// المدرس بس لقفل بعض الصفحات الحساسة في لوحة التحكم. مقصورة على المدرس فقط.
+
+// GET /api/account/admin-password
+const getAdminPassword = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'teacher') return apiError(res, 'غير مصرح', 403);
+  const user = await User.findById(req.user.userId).select('+adminPagesPassword').lean();
+  if (!user) return notFound(res, 'المستخدم غير موجود');
+  return success(res, { password: user.adminPagesPassword || '' });
+});
+
+// PATCH /api/account/admin-password
+const updateAdminPassword = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'teacher') return apiError(res, 'غير مصرح', 403);
+  const { password } = req.body;
+  if (!password || !password.trim()) {
+    return apiError(res, 'كلمة المرور مطلوبة', 400);
+  }
+  const user = await User.findById(req.user.userId);
+  if (!user) return notFound(res, 'المستخدم غير موجود');
+  user.adminPagesPassword = password.trim();
+  await user.save({ validateBeforeSave: false });
+  return success(res, { password: user.adminPagesPassword }, 'تم حفظ كلمة المرور بنجاح');
+});
+
+// POST /api/account/verify-admin-password — used by AdminPasswordGate on protected pages
+const verifyAdminPassword = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'teacher') return apiError(res, 'غير مصرح', 403);
+  const { password } = req.body;
+  const user = await User.findById(req.user.userId).select('+adminPagesPassword').lean();
+  if (!user) return notFound(res, 'المستخدم غير موجود');
+  const valid = !!password && !!user.adminPagesPassword && password === user.adminPagesPassword;
+  return success(res, { valid });
+});
+
+module.exports = {
+  getAccount, uploadAvatar: uploadAvatarCtrl, removeAvatar, changeCode, updateInfo, getTeacherInfo,
+  getAdminPassword, updateAdminPassword, verifyAdminPassword,
+};

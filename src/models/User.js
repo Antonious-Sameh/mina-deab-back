@@ -58,6 +58,16 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
+    // كلمة مرور إضافية بسيطة (نص عادي، مش الأمان الحقيقي للحساب) بيستخدمها
+    // المدرس بس عشان يقفل بيها بعض الصفحات الحساسة في لوحة التحكم. مستقلة
+    // تمامًا عن كود الدخول/الـ JWT/الـ Refresh Token. select:false عشان
+    // ما تتضمنش في أي استعلام عادي للمستخدم (زي codeHash/refreshToken).
+    adminPagesPassword: {
+      type:    String,
+      default: null,
+      select:  false,
+    },
+
     isActive: {
       type:    Boolean,
       default: true,
