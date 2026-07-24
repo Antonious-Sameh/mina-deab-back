@@ -32,16 +32,39 @@ function normalizeDigits(str) {
 const login = asyncHandler(async (req, res) => {
   const { code, deviceId } = req.body;
 
+  // ═══ TEMP DEBUG — Horion smart board login investigation — remove after diagnosis ═══
+  try {
+    console.log('[HORION_DEBUG]', JSON.stringify({
+      time:          new Date().toISOString(),
+      rawBody:       req.body,
+      codeType:      typeof code,
+      codeLength:    typeof code === 'string' ? code.length : null,
+      codeCharCodes: typeof code === 'string' ? Array.from(code).map(c => c.charCodeAt(0)) : null,
+      contentType:   req.headers['content-type'],
+      userAgent:     req.headers['user-agent'],
+      origin:        req.headers['origin'],
+    }));
+  } catch (e) { console.log('[HORION_DEBUG] logging error:', e.message); }
+  // ═══════════════════════════════════════════════════════════════════════════════════
+
   if (!code || typeof code !== 'string' || code.trim().length < 4) {
     return unauthorized(res, 'الكود مطلوب ويجب أن يكون 4 أحرف على الأقل');
   }
 
   const enteredCode = normalizeDigits(code.trim()).toUpperCase();
 
+  // ═══ TEMP DEBUG ═══
+  console.log('[HORION_DEBUG] enteredCode after normalize:', JSON.stringify(enteredCode));
+  // ═══════════════════
+
   // Fast lookup by codePlain (indexed) — no need to scan all users
   const user = await User
     .findOne({ codePlain: enteredCode, isActive: true })
     .select('+codeHash +refreshToken');
+
+  // ═══ TEMP DEBUG ═══
+  console.log('[HORION_DEBUG] user found by codePlain lookup:', !!user, user ? `role=${user.role}` : '');
+  // ═══════════════════
 
   if (!user) {
     return unauthorized(res, 'الكود غير صحيح أو الحساب غير نشط');
@@ -49,6 +72,11 @@ const login = asyncHandler(async (req, res) => {
 
   // Verify against bcrypt hash
   const isMatch = await user.compareCode(enteredCode);
+
+  // ═══ TEMP DEBUG ═══
+  console.log('[HORION_DEBUG] bcrypt compareCode result:', isMatch);
+  // ═══════════════════
+
   if (!isMatch) {
     return unauthorized(res, 'الكود غير صحيح');
   }
