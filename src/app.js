@@ -34,14 +34,63 @@ const compression = require('compression');
 
 const app = express();
 
+// Vercel (and any reverse proxy) sits in front of this app — without this,
+// Express doesn't know the connection is already terminated/proxied, which
+// affects req.ip, req.secure, and secure-cookie detection, and triggers
+// express-rate-limit's X-Forwarded-For validation warning on every request.
+app.set('trust proxy', 1);
+
+// ═══ TEMP DEBUG — Horion smart board login investigation — remove after diagnosis ═══
+app.use((req, res, next) => {
+  console.log('[HORION_DEBUG][first-middleware]', JSON.stringify({
+    time:   new Date().toISOString(),
+    method: req.method,
+    url:    req.originalUrl,
+    origin: req.headers['origin'] || null,
+  }));
+  next();
+});
+// ═══════════════════════════════════════════════════════════════════════════════════
+
 app.use(compression());
 
 // ── Security ──────────────────────────────────────────────────────────────────
 app.use(helmet());
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
+// CLIENT_URL may have a trailing slash or different casing than what the
+// browser actually sends in the Origin header (Origin never has a trailing
+// slash or path). A plain string passed as `origin` to the `cors` package
+// is echoed back in Access-Control-Allow-Origin UNCONDITIONALLY, regardless
+// of whether it matches the real Origin — the browser then rejects the
+// mismatch itself and never sends the actual request, which looks exactly
+// like "OPTIONS succeeds, POST never arrives". Using a validator function
+// with normalized comparison (and logging what we actually receive) fixes
+// that class of mismatch and gives us visibility into the real value.
+const normalizeOrigin = (o) => (o || '').trim().toLowerCase().replace(/\/+$/, '');
+const allowedOrigin = normalizeOrigin(CLIENT_URL);
+
 app.use(cors({
-  origin:         CLIENT_URL,
+  origin: (requestOrigin, callback) => {
+    // ═══ TEMP DEBUG ═══
+    console.log('[HORION_DEBUG][cors]', JSON.stringify({
+      requestOrigin: requestOrigin || null,
+      allowedOrigin: CLIENT_URL,
+      normalizedMatch: requestOrigin ? normalizeOrigin(requestOrigin) === allowedOrigin : 'no-origin-header',
+    }));
+    // ═══════════════════
+
+    // No Origin header at all (server-to-server calls, curl, some native
+    // webviews) — not a browser CORS request, allow it through.
+    if (!requestOrigin) return callback(null, true);
+
+    if (normalizeOrigin(requestOrigin) === allowedOrigin) {
+      return callback(null, true);
+    }
+
+    console.log('[HORION_DEBUG][cors] REJECTED — origin did not match', JSON.stringify({ requestOrigin, allowedOrigin: CLIENT_URL }));
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials:    true,
   methods:        ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
