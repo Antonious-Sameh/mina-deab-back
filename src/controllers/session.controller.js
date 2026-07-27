@@ -8,6 +8,7 @@ const Attendance      = require('../models/Attendance');
 const Payment         = require('../models/Payment');
 const { success, created, notFound, error } = require('../utils/apiResponse');
 const { asyncHandler } = require('../middleware/error.middleware');
+const { ARABIC_NAME_COLLATION } = require('../utils/nameSort');
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -86,6 +87,7 @@ const getSessionSheet = asyncHandler(async (req, res) => {
     .find({ group: session.group, role: 'student', isActive: true })
     .select('_id name codePlain studentId')
     .sort({ name: 1 })
+    .collation(ARABIC_NAME_COLLATION)
     .lean();
 
   const studentIds = students.map((s) => s._id);

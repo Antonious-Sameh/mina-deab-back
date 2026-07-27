@@ -8,6 +8,7 @@
     "dev": "nodemon server.js",
     "seed": "node src/utils/seed.js",
     "backfill-student-ids": "node src/utils/backfillStudentIds.js",
+    "backfill-trim-student-names": "node src/utils/backfillTrimStudentNames.js",
     "fix-attendance-indexes": "node src/utils/fixAttendanceIndexes.js"
   },
   "dependencies": {

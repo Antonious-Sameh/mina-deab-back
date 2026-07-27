@@ -7,6 +7,7 @@ const User     = require('../models/User');
 const ExamSubmission = require('../models/ExamSubmission');
 const { success, created, notFound, error } = require('../utils/apiResponse');
 const { asyncHandler } = require('../middleware/error.middleware');
+const { ARABIC_NAME_COLLATION } = require('../utils/nameSort');
 
 // ── GET /api/grades?exam= ─────────────────────────────────────────────────────
 // Full grade sheet for an exam — all students in the exam's year.
@@ -25,6 +26,7 @@ const getExamGrades = asyncHandler(async (req, res) => {
     .select('_id name codePlain studentId group')
     .populate('group', 'name')
     .sort({ name: 1 })
+    .collation(ARABIC_NAME_COLLATION)
     .lean();
 
   // ── تجميع الدرجات بناءً على نوع الامتحان (إلكتروني أو ورقي) ──────────────────

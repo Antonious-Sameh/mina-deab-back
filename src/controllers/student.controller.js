@@ -5,6 +5,7 @@ const { generateStudentCode, generateResetCode } = require('../utils/generateCod
 const { paginate }    = require('../utils/paginate');
 const { success, created, notFound, error } = require('../utils/apiResponse');
 const { asyncHandler } = require('../middleware/error.middleware');
+const { ARABIC_NAME_COLLATION } = require('../utils/nameSort');
 
 const getStudents = asyncHandler(async (req, res) => {
   const { year, group, search, page = 1, limit = 50, active } = req.query;
@@ -22,7 +23,7 @@ const getStudents = asyncHandler(async (req, res) => {
   const result = await paginate(User, filter, {
     page, limit,
     sort:      { academicYear: 1, name: 1 },
-    collation: { locale: 'ar' },
+    collation: ARABIC_NAME_COLLATION,
     populate:  [{ path: 'group', select: 'name academicYear' }],
   });
   return success(res, result);
@@ -61,7 +62,7 @@ const createStudent = asyncHandler(async (req, res) => {
 
   const plainCode = await generateStudentCode();
   const student = await User.create({
-    name, codePlain: plainCode, role: 'student',
+    name: trimmedName, codePlain: plainCode, role: 'student',
     academicYear, group: group || null,
     phone: phone || null, parentPhone: parentPhone || null,
     // الـ ID مش بيتحدد وقت الإنشاء دلوقتي — المدرس بيكتبه بعد كده من جدول
@@ -106,7 +107,7 @@ const updateStudent = asyncHandler(async (req, res) => {
     }
   }
 
-  if (name         !== undefined) student.name         = name;
+  if (name         !== undefined) student.name         = name.trim();
   if (academicYear !== undefined) student.academicYear = academicYear;
   if (group        !== undefined) student.group        = group || null;
   if (phone        !== undefined) student.phone        = phone || null;
