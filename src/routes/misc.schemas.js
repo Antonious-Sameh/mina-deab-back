@@ -50,6 +50,12 @@ const createNoteSchema = Joi.object({
     then: OBJECT_ID.required().messages({ 'any.required': 'الطالب مطلوب للملاحظات الخاصة' }),
     otherwise: OBJECT_ID.optional().allow(null, ''),
   }),
+  // Optional attachments (schema previously omitted these, which silently
+  // stripped them via stripUnknown — whitelisting them here so the existing
+  // imageUrl feature and the new PDF feature actually reach the controller)
+  imageUrl: Joi.string().uri().optional().allow(null, ''),
+  pdfUrl:   Joi.string().uri().optional().allow(null, ''),
+  pdfName:  Joi.string().max(200).optional().allow(null, ''),
 });
 
 // ── Lessons ───────────────────────────────────────────────────────────────────

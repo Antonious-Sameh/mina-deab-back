@@ -37,6 +37,9 @@ const noteSchema = new mongoose.Schema(
       ref: 'User',
     }],
     imageUrl: { type: String, default: null }, // optional image attached to note
+    // ── NEW: optional PDF attached to note (mirrors imageUrl) ──────────────────
+    pdfUrl:  { type: String, default: null },
+    pdfName: { type: String, default: null },
   },
   { timestamps: true }
 );

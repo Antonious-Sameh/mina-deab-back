@@ -30,6 +30,9 @@ const lessonSchema = new mongoose.Schema({
   title:        { type: String, required: [true,'عنوان الدرس مطلوب'], trim: true, minlength: 2, maxlength: 200 },
   academicYear: { type: String, enum: { values: ACADEMIC_YEARS, message: 'السنة الدراسية غير صحيحة' }, required: true },
   description:  { type: String, default: null, trim: true, maxlength: 500 },
+  // ── NEW: shown on the student's video poster/card ──────────────────────────
+  branch:       { type: String, default: null, trim: true, maxlength: 150 },
+  unit:         { type: String, default: null, trim: true, maxlength: 150 },
   order:        { type: Number, default: 0 },
   published:    { type: Boolean, default: false },
 

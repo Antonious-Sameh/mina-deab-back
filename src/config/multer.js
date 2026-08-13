@@ -76,6 +76,25 @@ const uploadAnswerSheet = multer({
   },
 });
 
+// ── Note PDF attachment ────────────────────────────────────────────────────────
+// Same proven pattern as uploadLessonFile (resource_type:'auto' + access_mode:
+// 'public' → Cloudinary serves it with CORS headers so it can be opened inline
+// in a viewer instead of forcing a download).
+const uploadNotePDF = multer({
+  storage: new CloudinaryStorageEngine({
+    params: {
+      folder:        'khatwa-plus/note-pdfs',
+      resource_type: 'auto',
+      access_mode:   'public',
+    },
+  }),
+  limits: { fileSize: 4 * 1024 * 1024 }, // 4 MB (Vercel Free limit)
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') return cb(null, true);
+    cb(new Error('الملف يجب أن يكون PDF'));
+  },
+});
+
 // ── Lesson content files (images + PDF) ──────────────────────────────────────
 const uploadLessonFile = multer({
   storage: new CloudinaryStorageEngine({
@@ -102,5 +121,6 @@ module.exports = {
   uploadPDF,
   uploadHero,
   uploadAnswerSheet,
-  uploadLessonFile // ضفنا المحرك الجديد هنا
+  uploadLessonFile, // ضفنا المحرك الجديد هنا
+  uploadNotePDF,
 };

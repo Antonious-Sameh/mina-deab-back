@@ -1,14 +1,15 @@
 const express = require('express');
 const router  = express.Router();
-const { getNotes, getStudentNotes, getUnreadCount, markAsRead, markAllRead, createNote, deleteNote, uploadNoteImage, deleteNoteImage } =  
+const { getNotes, getStudentNotes, getUnreadCount, markAsRead, markAllRead, createNote, deleteNote, uploadNoteImage, deleteNoteImage, uploadNotePdf } =  
   require('../controllers/note.controller');
-const { uploadAvatar } = require('../config/multer');
+const { uploadAvatar, uploadNotePDF } = require('../config/multer');
 const { protect, isTeacher, isStudent } = require('../middleware/auth.middleware');
 const { validate }  = require('../middleware/validate.middleware');
 const { createNoteSchema } = require('./misc.schemas');
 
 // Teacher routes
 router.post('/upload-image', isTeacher, uploadAvatar.single('noteImage'), uploadNoteImage);
+router.post('/upload-pdf',   isTeacher, uploadNotePDF.single('notePdf'), uploadNotePdf);
 router.delete('/:id/image', isTeacher, deleteNoteImage);
 
 router.get('/',                    isTeacher, getNotes);

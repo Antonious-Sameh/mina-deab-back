@@ -73,6 +73,7 @@ const createLesson = asyncHandler(async (req, res) => {
     title, academicYear, type, order, published,
     videoUrl, duration, thumbnailUrl,
     fileUrl, fileType, fileSize,
+    description, branch, unit,
   } = req.body;
 
   let lessonOrder = order;
@@ -91,6 +92,9 @@ const createLesson = asyncHandler(async (req, res) => {
     fileUrl:   fileUrl   || null,
     fileType:  fileType  || null,
     fileSize:  fileSize  || null,
+    description: description || null,
+    branch:      branch      || null,
+    unit:        unit        || null,
     uploadedBy: req.user.userId,
   });
 
@@ -101,7 +105,7 @@ const createLesson = asyncHandler(async (req, res) => {
 const updateLesson = asyncHandler(async (req, res) => {
   const lesson = await Lesson.findById(req.params.id);
   if (!lesson) return notFound(res, 'الدرس غير موجود');
-  const fields = ['title','order','published','videoUrl','duration','thumbnailUrl','fileUrl','fileType','fileSize'];
+  const fields = ['title','order','published','videoUrl','duration','thumbnailUrl','fileUrl','fileType','fileSize','description','branch','unit'];
   fields.forEach(f => { if (req.body[f] !== undefined) lesson[f] = req.body[f]; });
   await lesson.save();
   return success(res, { lesson }, 'تم تعديل الدرس بنجاح');

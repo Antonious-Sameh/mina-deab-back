@@ -99,7 +99,7 @@ const markAllRead = asyncHandler(async (req, res) => {
 
 // ── POST /api/notes (teacher) ─────────────────────────────────────────────────
 const createNote = asyncHandler(async (req, res) => {
-  const { type, text, academicYear, studentId, imageUrl } = req.body;
+  const { type, text, academicYear, studentId, imageUrl, pdfUrl, pdfName } = req.body;
 
   if (type === 'private') {
     const student = await User.findOne({ _id: studentId, role: 'student' }).lean();
@@ -114,6 +114,8 @@ const createNote = asyncHandler(async (req, res) => {
     createdBy:    req.user.userId,
     readBy:       [],
     imageUrl:     imageUrl || null,
+    pdfUrl:       pdfUrl   || null,
+    pdfName:      pdfName  || null,
   });
 
   await note.populate('student', 'name codePlain');
@@ -124,6 +126,15 @@ const createNote = asyncHandler(async (req, res) => {
 const uploadNoteImage = asyncHandler(async (req, res) => {
   if (!req.file) return require('../utils/apiResponse').error(res, 'لم يتم رفع صورة', 400);
   return require('../utils/apiResponse').success(res, { imageUrl: req.file.path }, 'تم رفع الصورة');
+});
+
+// ── POST /api/notes/upload-pdf (teacher) ───────────────────────────────────────
+const uploadNotePdf = asyncHandler(async (req, res) => {
+  if (!req.file) return require('../utils/apiResponse').error(res, 'لم يتم رفع ملف PDF', 400);
+  return require('../utils/apiResponse').success(res, {
+    pdfUrl:  req.file.path,
+    pdfName: req.file.originalname,
+  }, 'تم رفع الملف');
 });
 
 // ── DELETE /api/notes/:id/image (teacher) ─────────────────────────────────────
@@ -152,4 +163,4 @@ const deleteNote = asyncHandler(async (req, res) => {
   return success(res, {}, 'تم حذف الملاحظة بنجاح');
 });
 
-module.exports = { getNotes, getStudentNotes, getUnreadCount, markAsRead, markAllRead, createNote, deleteNote, uploadNoteImage, deleteNoteImage };
+module.exports = { getNotes, getStudentNotes, getUnreadCount, markAsRead, markAllRead, createNote, deleteNote, uploadNoteImage, deleteNoteImage, uploadNotePdf };
