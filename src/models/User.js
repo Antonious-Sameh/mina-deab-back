@@ -74,6 +74,17 @@ const userSchema = new mongoose.Schema(
     },
 
     // ── Student-only ──────────────────────────────────────────────────────────
+    // Distinguishes center students from online students. Both still use
+    // role: 'student' — this field only toggles which student features apply
+    // (e.g. center attendance). Students created before this field existed
+    // have no value stored, so they must always be treated as 'center' via
+    // `student.studentType || 'center'` wherever this is read.
+    studentType: {
+      type:    String,
+      enum:    ['center', 'online'],
+      default: 'center',
+    },
+
     academicYear: {
       type:    String,
       enum:    ACADEMIC_YEARS,

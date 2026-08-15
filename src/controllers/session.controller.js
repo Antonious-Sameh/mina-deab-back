@@ -83,8 +83,13 @@ const getSessionSheet = asyncHandler(async (req, res) => {
     Group.findById(session.group).lean(),
   ]);
 
+  // Online students never appear in the center sheet, even if one somehow
+  // ended up assigned to a center group.
   const students = await User
-    .find({ group: session.group, role: 'student', isActive: true })
+    .find({
+      group: session.group, role: 'student', isActive: true,
+      $or: [{ studentType: 'center' }, { studentType: { $exists: false } }],
+    })
     .select('_id name codePlain studentId')
     .sort({ name: 1 })
     .collation(ARABIC_NAME_COLLATION)

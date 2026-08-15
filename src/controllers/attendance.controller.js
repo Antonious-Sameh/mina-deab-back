@@ -59,10 +59,14 @@ const getGroupSheet = asyncHandler(async (req, res) => {
   const grp = await Group.findById(groupId).lean();
   if (!grp) return notFound(res, 'المجموعة غير موجودة');
 
-  // Get all students in this group
+  // Get all students in this group — online students never appear in center
+  // attendance, even if one somehow ended up assigned to a center group.
   const students = await User
-    .find({ group: groupId, role: 'student', isActive: true })
-    .select('_id name codePlain avatar')
+    .find({
+      group: groupId, role: 'student', isActive: true,
+      $or: [{ studentType: 'center' }, { studentType: { $exists: false } }],
+    })
+    .select('_id name codePlain avatar studentType')
     .sort({ name: 1 })
     .lean();
 

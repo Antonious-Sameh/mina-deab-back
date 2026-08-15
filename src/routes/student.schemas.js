@@ -27,6 +27,9 @@ const createStudentSchema = Joi.object({
     'any.only':    'السنة الدراسية غير صحيحة',
     'any.required': 'السنة الدراسية مطلوبة',
   }),
+  studentType: Joi.string().valid('center', 'online').optional().messages({
+    'any.only': 'نوع الطالب يجب أن يكون سنتر أو أونلاين',
+  }),
   group: OBJECT_ID.optional().allow(null, ''),
   phone: Joi.string().pattern(/^01[0-9]{9}$/).optional().allow(null, '').messages({
     'string.pattern.base': 'رقم الهاتف يجب أن يكون 11 رقماً ويبدأ بـ 01',
@@ -39,6 +42,9 @@ const createStudentSchema = Joi.object({
 const updateStudentSchema = Joi.object({
   name:         Joi.string().min(2).max(100),
   academicYear: Joi.string().valid(...ACADEMIC_YEARS),
+  studentType:  Joi.string().valid('center', 'online').messages({
+    'any.only': 'نوع الطالب يجب أن يكون سنتر أو أونلاين',
+  }),
   group:        OBJECT_ID.allow(null, ''),
   phone:        Joi.string().pattern(/^01[0-9]{9}$/).allow(null, ''),
   parentPhone:  Joi.string().pattern(/^01[0-9]{9}$/).allow(null, ''),

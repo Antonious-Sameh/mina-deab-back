@@ -8,18 +8,31 @@ const { asyncHandler } = require('../middleware/error.middleware');
 const { ARABIC_NAME_COLLATION } = require('../utils/nameSort');
 
 const getStudents = asyncHandler(async (req, res) => {
-  const { year, group, search, page = 1, limit = 50, active } = req.query;
+  const { year, group, search, page = 1, limit = 50, active, studentType } = req.query;
   const filter = { role: 'student' };
   if (year)   filter.academicYear = year;
   if (group)  filter.group        = group;
   if (active !== undefined) filter.isActive = active === 'true';
-  if (search) {
-    filter.$or = [
-      { name:      { $regex: search.trim(), $options: 'i' } },
-      { codePlain: { $regex: search.trim().toUpperCase() } },
-      { phone:     { $regex: search.trim() } },
-    ];
+
+  // $and lets us combine the studentType condition and the search condition
+  // even though each one needs its own $or internally.
+  const andConditions = [];
+  // Old students have no studentType stored — they're implicitly 'center'.
+  if (studentType === 'center') {
+    andConditions.push({ $or: [{ studentType: 'center' }, { studentType: { $exists: false } }] });
+  } else if (studentType === 'online') {
+    filter.studentType = 'online';
   }
+  if (search) {
+    andConditions.push({
+      $or: [
+        { name:      { $regex: search.trim(), $options: 'i' } },
+        { codePlain: { $regex: search.trim().toUpperCase() } },
+        { phone:     { $regex: search.trim() } },
+      ],
+    });
+  }
+  if (andConditions.length) filter.$and = andConditions;
   const result = await paginate(User, filter, {
     page, limit,
     sort:      { academicYear: 1, name: 1 },
@@ -40,7 +53,7 @@ const getStudent = asyncHandler(async (req, res) => {
 });
 
 const createStudent = asyncHandler(async (req, res) => {
-  const { name, academicYear, group, phone, parentPhone } = req.body;
+  const { name, academicYear, group, phone, parentPhone, studentType } = req.body;
 
   if (group) {
     const grp = await Group.findById(group).lean();
@@ -64,6 +77,7 @@ const createStudent = asyncHandler(async (req, res) => {
   const student = await User.create({
     name: trimmedName, codePlain: plainCode, role: 'student',
     academicYear, group: group || null,
+    studentType: studentType === 'online' ? 'online' : 'center',
     phone: phone || null, parentPhone: parentPhone || null,
     // الـ ID مش بيتحدد وقت الإنشاء دلوقتي — المدرس بيكتبه بعد كده من جدول
     // الطلاب (studentId يفضل null لحد ما يتحدد يدوياً)
@@ -74,7 +88,7 @@ const createStudent = asyncHandler(async (req, res) => {
 });
 
 const updateStudent = asyncHandler(async (req, res) => {
-  const { name, academicYear, group, phone, parentPhone, isActive, studentId } = req.body;
+  const { name, academicYear, group, phone, parentPhone, isActive, studentId, studentType } = req.body;
   const student = await User.findOne({ _id: req.params.id, role: 'student' });
   if (!student) return notFound(res, 'الطالب غير موجود');
   if (group && academicYear) {
@@ -109,6 +123,7 @@ const updateStudent = asyncHandler(async (req, res) => {
 
   if (name         !== undefined) student.name         = name.trim();
   if (academicYear !== undefined) student.academicYear = academicYear;
+  if (studentType  !== undefined) student.studentType  = studentType;
   if (group        !== undefined) student.group        = group || null;
   if (phone        !== undefined) student.phone        = phone || null;
   if (parentPhone  !== undefined) student.parentPhone  = parentPhone || null;
