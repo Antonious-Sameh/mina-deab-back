@@ -440,10 +440,22 @@ const deletePaperExam = asyncHandler(async (req, res) => {
   return success(res, {}, 'تم حذف الامتحان الورقي وجميع درجاته');
 });
 
-// ── GET /api/grades/exam-rankings?year=&examId=&examType=&examTitle= ──────────
-// Rank students by their score in ONE specific exam
+// ── GET /api/grades/exam-rankings?year=&examId=&examType= ─────────────────────
+// Rank students by their score in ONE specific exam (electronic OR paper).
+//
+// ── BUGFIX (ranking page shows nothing after picking a stage) ────────────────
+// Paper-exam grades are entered by the teacher through GradesPage → PaperGrades
+// tab, which uses the SAME storage as electronic exams: a real `Exam` document
+// (examType:'paper') + `Grade{ exam: examId, student, score }` rows — see
+// GET /grades?exam= and POST /grades/bulk in this same file, used by
+// front/src/pages/teacher/GradesPage.jsx's paper tab.
+// This endpoint used to look for a completely different, unused storage shape
+// (`Grade{ examType:'paper', exam:null, examTitle }`) that nothing in the app
+// actually writes to anymore — so paper rankings (and the paper exam list in
+// getPaperExams) were always empty. Reading paper scores the same way as
+// electronic ones (by real exam._id) fixes this without touching the schema.
 const getExamRankings = asyncHandler(async (req, res) => {
-  const { year, examId, examType, examTitle } = req.query;
+  const { year, examId, examType } = req.query;
 
   if (!year) return error(res, 'السنة الدراسية مطلوبة', 400);
 
@@ -455,19 +467,27 @@ const getExamRankings = asyncHandler(async (req, res) => {
 
   const scoreMap = new Map();
 
-  if (examType === 'electronic' && examId) {
-    // Electronic: read from ExamSubmission
+  if (examId && (examType === 'electronic' || examType === 'paper')) {
     const examObjId = new mongoose.Types.ObjectId(examId);
-    const exam      = await Exam.findById(examObjId).select('maxScore title').lean();
-    const subs      = await ExamSubmission.find({ exam: examObjId }).select('student score percentage').lean();
+    const exam       = await Exam.findById(examObjId).select('maxScore title academicYear').lean();
 
-    subs.forEach(s => scoreMap.set(s.student.toString(), { score: s.score, maxScore: exam?.maxScore || 0, percentage: s.percentage || 0 }));
-
-  } else if (examType === 'paper' && examTitle) {
-    // Paper: read from Grade model
-    const grades = await Grade.find({ examType: 'paper', exam: null, examTitle }).lean();
-
-    grades.forEach(g => scoreMap.set(g.student.toString(), { score: g.score || 0, maxScore: g.maxScore || 0, percentage: g.maxScore > 0 ? Math.round((g.score/g.maxScore)*100) : 0 }));
+    if (exam && exam.academicYear === year) {
+      if (examType === 'electronic') {
+        // Electronic: read from ExamSubmission
+        const subs = await ExamSubmission.find({ exam: examObjId }).select('student score percentage').lean();
+        subs.forEach(s => scoreMap.set(s.student.toString(), {
+          score: s.score, maxScore: exam?.maxScore || 0, percentage: s.percentage || 0,
+        }));
+      } else {
+        // Paper: read from Grade model — same shape used by GradesPage's paper tab
+        const grades = await Grade.find({ exam: examObjId }).select('student score').lean();
+        grades.forEach(g => scoreMap.set(g.student.toString(), {
+          score: g.score || 0,
+          maxScore: exam?.maxScore || 0,
+          percentage: exam?.maxScore > 0 ? Math.round((g.score / exam.maxScore) * 100) : 0,
+        }));
+      }
+    }
   }
 
   const ranked = students
@@ -499,10 +519,6 @@ const getExamRankings = asyncHandler(async (req, res) => {
 
   return success(res, { year, examType, total: ranked.length, rankings: ranked });
 });
-
-
-  getExamRankings,
-
 
 module.exports = {
   getExamGrades,

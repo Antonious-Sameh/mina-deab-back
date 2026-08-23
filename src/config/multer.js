@@ -23,11 +23,18 @@ const uploadAvatar = multer({
 });
 
 // ── PDF documents ─────────────────────────────────────────────────────────────
+// BUGFIX: was resource_type:'auto'. Cloudinary's 'auto' detection is not
+// guaranteed to be consistent for every PDF (it can occasionally land the
+// file under the 'raw' resource type, which has stricter/inconsistent public
+// delivery rules and can make the file fail to open). Forcing resource_type
+// to 'image' is Cloudinary's documented, deterministic way to store PDFs so
+// they always get a stable, publicly-servable /image/upload/ URL that our
+// pdf.js-based PDFViewer (and any browser) can open reliably.
 const uploadPDF = multer({
   storage: new CloudinaryStorageEngine({
     params: {
       folder:        'khatwa-plus/pdfs',
-      resource_type: 'auto',   // auto so Cloudinary serves with CORS headers
+      resource_type: 'image',
       access_mode:   'public',
     },
   }),
@@ -58,15 +65,14 @@ const uploadHero = multer({
 // ── Exam answer sheet (PDF or image) ─────────────────────────────────────────
 const uploadAnswerSheet = multer({
   storage: new CloudinaryStorageEngine({
-    // Use 'auto' for resource_type — Cloudinary auto-detects PDF as document type
-    // and serves it with proper CORS headers (unlike 'raw' which blocks cross-origin reads)
-    params: (req, file) => {
-      return {
-        folder:          'khatwa-plus/answer-sheets',
-        resource_type:   'auto',   // auto = Cloudinary picks image/raw/video
-        access_mode:     'public', // ensure public CORS-accessible URL
-      };
-    },
+    // BUGFIX: force resource_type deterministically instead of 'auto' — see
+    // note on uploadPDF above. Images stay 'image'; PDFs are stored as
+    // 'image' too (Cloudinary's supported way to preview PDFs reliably).
+    params: () => ({
+      folder:        'khatwa-plus/answer-sheets',
+      resource_type: 'image',
+      access_mode:   'public', // ensure public CORS-accessible URL
+    }),
   }),
   limits: { fileSize: 4 * 1024 * 1024 }, // 4 MB
   fileFilter: (req, file, cb) => {
@@ -84,7 +90,7 @@ const uploadNotePDF = multer({
   storage: new CloudinaryStorageEngine({
     params: {
       folder:        'khatwa-plus/note-pdfs',
-      resource_type: 'auto',
+      resource_type: 'image',   // BUGFIX: deterministic instead of 'auto' — see uploadPDF note above
       access_mode:   'public',
     },
   }),
@@ -102,7 +108,7 @@ const uploadLessonFile = multer({
       const isPdf = file.mimetype === 'application/pdf';
       return {
         folder:        isPdf ? 'khatwa-plus/lesson-pdfs' : 'khatwa-plus/lesson-images',
-        resource_type: 'auto',    // auto handles both PDF and image with CORS headers
+        resource_type: 'image',   // BUGFIX: deterministic instead of 'auto' — see uploadPDF note above
         access_mode:   'public',
       };
     },

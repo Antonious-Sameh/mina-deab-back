@@ -25,9 +25,11 @@ const {
 } = require('./exam.schemas');
 
 // GET /api/grades/rankings?year=     ← must be before /:id
-router.get('/rankings', getRankings);
+// SECURITY FIX: was missing isTeacher — any logged-in user (including
+// students) could previously call this and see every student's ranking.
+router.get('/rankings', isTeacher, getRankings);
 
-router.get('/exam-rankings', getExamRankings);
+router.get('/exam-rankings', isTeacher, getExamRankings);
 
 // GET /api/grades/student/:studentId
 router.get('/student/:studentId', getStudentGrades);

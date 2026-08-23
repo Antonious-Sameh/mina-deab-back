@@ -393,7 +393,18 @@ const getMyLessons = asyncHandler(async (req, res) => {
   if (!student) return notFound(res, 'الطالب غير موجود');
 
   const { type } = req.query;
-  const filter = { academicYear: student.academicYear, published: true };
+
+  // BUGFIX: this endpoint used to filter by academicYear only — it never
+  // checked whether a lesson was meant for Online or Center students, so
+  // every student in a year saw every video regardless of their studentType.
+  // `audienceType: null` covers legacy lessons created before this field
+  // existed, which stay visible to everyone exactly like before.
+  const studentType = student.studentType || 'center';
+  const filter = {
+    academicYear: student.academicYear,
+    published: true,
+    $or: [{ audienceType: studentType }, { audienceType: null }],
+  };
   if (type) filter.type = type;
 
   const lessons = await Lesson.find(filter).sort({ order: 1 }).lean();

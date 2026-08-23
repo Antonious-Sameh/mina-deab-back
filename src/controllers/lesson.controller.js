@@ -73,8 +73,14 @@ const createLesson = asyncHandler(async (req, res) => {
     title, academicYear, type, order, published,
     videoUrl, duration, thumbnailUrl,
     fileUrl, fileType, fileSize,
-    description, branch, unit,
+    description, branch, unit, audienceType,
   } = req.body;
+
+  // نوع الطالب (أونلاين/سنتر) مطلوب بوضوح عند إنشاء الدرس — لو اتبعت قيمة
+  // غير صحيحة أو فاضية بنرفض بدل ما نسيب الدرس بدون تصنيف بالغلط.
+  if (audienceType !== undefined && audienceType !== null && !['online', 'center'].includes(audienceType)) {
+    return apiError(res, 'نوع الطالب يجب أن يكون Online أو Center', 400);
+  }
 
   let lessonOrder = order;
   if (!lessonOrder) {
@@ -95,6 +101,7 @@ const createLesson = asyncHandler(async (req, res) => {
     description: description || null,
     branch:      branch      || null,
     unit:        unit        || null,
+    audienceType: audienceType || null,
     uploadedBy: req.user.userId,
   });
 
@@ -105,7 +112,13 @@ const createLesson = asyncHandler(async (req, res) => {
 const updateLesson = asyncHandler(async (req, res) => {
   const lesson = await Lesson.findById(req.params.id);
   if (!lesson) return notFound(res, 'الدرس غير موجود');
-  const fields = ['title','order','published','videoUrl','duration','thumbnailUrl','fileUrl','fileType','fileSize','description','branch','unit'];
+
+  if (req.body.audienceType !== undefined && req.body.audienceType !== null
+      && !['online', 'center'].includes(req.body.audienceType)) {
+    return apiError(res, 'نوع الطالب يجب أن يكون Online أو Center', 400);
+  }
+
+  const fields = ['title','order','published','videoUrl','duration','thumbnailUrl','fileUrl','fileType','fileSize','description','branch','unit','audienceType'];
   fields.forEach(f => { if (req.body[f] !== undefined) lesson[f] = req.body[f]; });
   await lesson.save();
   return success(res, { lesson }, 'تم تعديل الدرس بنجاح');
@@ -170,12 +183,37 @@ const reorderLessons = asyncHandler(async (req, res) => {
   return success(res, {}, 'تم تحديث ترتيب الدروس بنجاح');
 });
 
+// ── Helper: can this student access this lesson? ─────────────────────────────
+// SECURITY FIX: these endpoints used to only check `lesson.published`, with
+// NO check that the lesson belongs to the student's academic year or
+// audience type (online/center) — meaning any logged-in student could reach
+// ANY published lesson's stream/heartbeat/watch endpoints just by knowing (or
+// guessing/incrementing) its ID, regardless of their own year or type. This
+// closes that hole while staying backward-compatible: lessons created before
+// `audienceType` existed (null) remain visible to both student types, exactly
+// like before this feature was added.
+async function assertStudentCanAccessLesson(studentId, lesson) {
+  const student = await User.findById(studentId).select('academicYear studentType').lean();
+  if (!student) return { ok: false, message: 'الطالب غير موجود' };
+  if (lesson.academicYear !== student.academicYear) {
+    return { ok: false, message: 'هذا الدرس غير متاح لمرحلتك الدراسية' };
+  }
+  const studentType = student.studentType || 'center';
+  if (lesson.audienceType && lesson.audienceType !== studentType) {
+    return { ok: false, message: 'هذا الدرس غير متاح لنوع اشتراكك' };
+  }
+  return { ok: true };
+}
+
 // ── GET /api/lessons/:id/stream (student) ────────────────────────────────────
 // Returns embed-safe info without exposing the raw URL directly
 const getStreamInfo = asyncHandler(async (req, res) => {
   const lesson = await Lesson.findById(req.params.id).lean();
   if (!lesson) return notFound(res, 'الدرس غير موجود');
   if (!lesson.published) return apiError(res, 'هذا الدرس غير متاح', 403);
+
+  const access = await assertStudentCanAccessLesson(req.user.userId, lesson);
+  if (!access.ok) return apiError(res, access.message, 403);
 
   const ytId = extractYouTubeId(lesson.videoUrl);
 
@@ -204,6 +242,9 @@ const heartbeat = asyncHandler(async (req, res) => {
   const lesson = await Lesson.findById(req.params.id).lean();
   if (!lesson) return notFound(res, 'الدرس غير موجود');
   if (!lesson.published) return apiError(res, 'الدرس غير متاح', 403);
+
+  const access = await assertStudentCanAccessLesson(studentId, lesson);
+  if (!access.ok) return apiError(res, access.message, 403);
 
   const isCompleted = watchPercentage >= COMPLETION_THRESHOLD;
 
@@ -285,6 +326,9 @@ const markWatched = asyncHandler(async (req, res) => {
   const lesson = await Lesson.findById(req.params.id).lean();
   if (!lesson) return notFound(res, 'الدرس غير موجود');
   if (!lesson.published) return apiError(res, 'الدرس غير متاح', 403);
+
+  const access = await assertStudentCanAccessLesson(studentId, lesson);
+  if (!access.ok) return apiError(res, access.message, 403);
 
   const log = await WatchLog.findOneAndUpdate(
     { lesson: lesson._id, student: studentId },
