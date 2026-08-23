@@ -106,11 +106,14 @@ const globalLimiter = rateLimit({
   legacyHeaders:   false,
 });
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max:      20,
-  message:  { success: false, message: 'محاولات تسجيل دخول كثيرة، حاول بعد 15 دقيقة' },
-});
+// NOTE: the login-attempts limiter used to be defined and applied here, to
+// the WHOLE /api/auth router — that caught background /refresh calls (fired
+// automatically by every open tab to keep the session alive) under the same
+// counter as real login attempts. Many students sharing one school/center
+// Wi-Fi IP could exhaust it from background traffic alone, showing
+// "محاولات تسجيل دخول كثيرة" to students who never mistyped a password.
+// It now lives in auth.routes.js, applied ONLY to POST /login, and only
+// counts FAILED attempts — see the BUGFIX comment there.
 
 app.use(globalLimiter);
 
@@ -138,7 +141,10 @@ app.get('/api/health', (req, res) => {
 // ── API Routes ────────────────────────────────────────────────────────────────
 
 // Auth (rate-limited separately)
-app.use('/api/auth', authLimiter, authRoutes);
+// BUGFIX: authLimiter moved into auth.routes.js and applied ONLY to the
+// /login route (see comment there for why) — it used to be applied here to
+// the entire /api/auth router, catching background /refresh calls too.
+app.use('/api/auth', authRoutes);
 
 // Teacher-only routes (protect + isTeacher applied per-router or per-route)
 app.use('/api/students',   protect, isTeacher, studentRoutes);
