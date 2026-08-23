@@ -30,6 +30,7 @@ const heroRoutes    = require('./routes/hero.routes');
 require('./models/HeroAlbum'); // register HeroAlbum model
 const studentSelfRoutes = require('./routes/studentSelf.routes');
 const accountRoutes     = require('./routes/account.routes');
+const fileRoutes        = require('./routes/file.routes');
 const compression = require('compression');
 
 const app = express();
@@ -156,6 +157,9 @@ app.use('/api/grades',     protect, gradeRoutes);       // درجات الطلا
 app.use('/api/points',     protect, pointRoutes);       // نقاط ومكافآت الطلاب
 app.use('/api/notes',      protect, noteRoutes);        // ملاحظات وإشعارات المقروء وغير المقروء
 app.use('/api/lessons',    protect, lessonRoutes);      // الدروس، الـ Stream والـ Heartbeat الجديد لحساب وقت المشاهدة
+// وسيط لتحميل ملفات PDF/الصور من Cloudinary عن طريق السيرفر نفسه (يحل مشكلة
+// فتح ملفات الـ PDF اللي كانت بتفشل بسبب الـ CORS عند الجلب المباشر من المتصفح)
+app.use('/api/files',      protect, fileRoutes);
 
 // لوحة الشرف (الـ GET للعامة، والتعديل محمي جوة الـ router نفسه)
 app.use('/api/heroes',     heroRoutes);
