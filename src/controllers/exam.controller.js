@@ -33,16 +33,24 @@ const extractPublicId = (url) => {
 };
 
 // ── Helper: delete a file from Cloudinary safely (never throws) ────────────
+// BUGFIX: multer.js now always uploads PDFs as resource_type:'image' (see
+// note there for why) — but callers here were told to pass 'raw' for pdf
+// files, matching the OLD upload behaviour. That meant newly-uploaded PDF
+// answer sheets/exam papers were never actually found & deleted from
+// Cloudinary when a teacher removed them (silent storage leak — did not
+// affect viewing/opening files, only cleanup). Now tries 'image' first
+// (current behaviour) then falls back to 'raw' (covers files uploaded
+// before this fix), regardless of what the caller passes in.
 const destroyFromCloudinary = async (url, resourceType = 'image') => {
   const pubId = extractPublicId(url);
   if (!pubId) return;
-  // Try with the given type first, then fall back to 'raw' for old files
-  // uploaded before we switched to resource_type: 'auto'
   try {
-    const result = await cloudinary.uploader.destroy(pubId, { resource_type: resourceType });
+    const primary = resourceType === 'raw' ? 'image' : resourceType;
+    const result = await cloudinary.uploader.destroy(pubId, { resource_type: primary });
     if (result.result === 'not found') {
-      // Old file stored as 'raw' — try again
-      await cloudinary.uploader.destroy(pubId, { resource_type: 'raw' });
+      // Old file stored under the other resource type — try the alternative
+      const alt = primary === 'raw' ? 'image' : 'raw';
+      await cloudinary.uploader.destroy(pubId, { resource_type: alt });
     }
   } catch {}
 };

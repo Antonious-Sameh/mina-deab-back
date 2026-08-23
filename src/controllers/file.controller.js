@@ -45,10 +45,32 @@ const proxyFile = asyncHandler(async (req, res) => {
   try {
     upstream = await fetch(target.toString());
   } catch (err) {
+    console.error('[file.controller] proxy network error:', err.message);
     return apiError(res, 'تعذّر الاتصال بالخادم لجلب الملف', 502);
   }
 
   if (!upstream.ok || !upstream.body) {
+    // نطبع تفاصيل الخطأ الحقيقي في سجلات السيرفر (Logs) عشان نقدر نشخّص
+    // السبب الحقيقي بدل رسالة عامة، مع رسالة أوضح للحالة الأكثر شيوعًا:
+    // حساب Cloudinary مقفول عليه توصيل ملفات PDF/ZIP من إعدادات الأمان
+    // (Settings → Security → "Allow delivery of PDF and ZIP files").
+    // ده إعداد على مستوى الحساب مش ممكن يتغير من الكود خالص.
+    let bodyText = '';
+    try { bodyText = await upstream.text(); } catch {}
+    console.error('[file.controller] Cloudinary refused the file:', {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      url: target.toString(),
+      body: bodyText?.slice(0, 500),
+    });
+
+    if (upstream.status === 401 || upstream.status === 403) {
+      return apiError(
+        res,
+        'الحساب مقفول عليه توصيل ملفات PDF من Cloudinary — لازم تتفعّل خاصية "Allow delivery of PDF and ZIP files" من إعدادات الأمان في لوحة تحكم Cloudinary',
+        upstream.status,
+      );
+    }
     return apiError(res, 'تعذّر تحميل الملف من مصدره', upstream.status === 404 ? 404 : 502);
   }
 
