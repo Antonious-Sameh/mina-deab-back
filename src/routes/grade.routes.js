@@ -5,6 +5,7 @@ const router  = express.Router();
 
 const {
   getExamGrades,
+  getSectionTotalGrades,
   enterGrade,
   bulkEnterGrades,
   updateGrade,
@@ -30,6 +31,11 @@ const {
 router.get('/rankings', isTeacher, getRankings);
 
 router.get('/exam-rankings', isTeacher, getExamRankings);
+
+// GET /api/grades/section-total?sectionId=&year=  ← must be before /:id-style
+// paths for the same reason as above (distinct literal path, but kept here
+// for readability alongside the other "computed/aggregate" grade endpoints).
+router.get('/section-total', isTeacher, getSectionTotalGrades);
 
 // GET /api/grades/student/:studentId
 router.get('/student/:studentId', getStudentGrades);

@@ -5,6 +5,7 @@ const Grade    = require('../models/Grade');
 const Exam     = require('../models/Exam');
 const User     = require('../models/User');
 const ExamSubmission = require('../models/ExamSubmission');
+const PaperExamSection = require('../models/PaperExamSection');
 const { success, created, notFound, error } = require('../utils/apiResponse');
 const { asyncHandler } = require('../middleware/error.middleware');
 const { ARABIC_NAME_COLLATION } = require('../utils/nameSort');
@@ -101,6 +102,100 @@ const getExamGrades = asyncHandler(async (req, res) => {
       highest,
       lowest,
     },
+  });
+});
+
+// ── GET /api/grades/section-total?sectionId=&year= ────────────────────────────
+// "إجمالي درجات القسم" — a virtual, calculated-only row shown alongside the
+// real paper exams inside a PaperExamSection folder (GradesPage → قسم ورقي).
+// It is NOT a real Exam document and nothing is written to the database for
+// it — it is a pure read-model computed on every request from the paper
+// exams that already belong to this section + their existing Grade rows, so
+// it is always up to date the instant a grade (or an exam) is added, edited,
+// or deleted — nothing to keep in sync.
+//
+// Scoping matches the rest of the grades page exactly:
+//  - only paper exams whose `section` is this sectionId
+//  - only exams whose `academicYear` is the requested year (sections are
+//    already scoped per year — this is just an extra safety check so a
+//    stale/foreign sectionId can never leak grades across years)
+//  - group filtering is left to the frontend, exactly like every other
+//    sheet in this file (getExamGrades, getPaperExamSheet) — the frontend
+//    filters `sheet` by `student.group._id` using the same ALL_GROUPS logic
+//    already used for every other exam's grade sheet.
+const getSectionTotalGrades = asyncHandler(async (req, res) => {
+  const { sectionId, year } = req.query;
+  if (!sectionId || !year) return error(res, 'القسم والسنة الدراسية مطلوبان', 400);
+
+  const section = await PaperExamSection.findById(sectionId).lean();
+  if (!section) return notFound(res, 'القسم غير موجود');
+  if (section.academicYear !== year) return notFound(res, 'القسم غير موجود لهذه السنة');
+
+  // Every paper exam currently inside this section — this list itself IS the
+  // "what counts in the total" logic: add an exam to the section and it's
+  // included automatically on the next load; remove/delete it and it's
+  // excluded automatically. No separate list to maintain.
+  const exams = await Exam
+    .find({ examType: 'paper', section: sectionId, academicYear: year })
+    .select('_id maxScore')
+    .lean();
+
+  const examIds    = exams.map(e => e._id);
+  const examMaxMap = {};
+  exams.forEach(e => { examMaxMap[e._id.toString()] = e.maxScore || 0; });
+  const totalMaxScore = exams.reduce((s, e) => s + (e.maxScore || 0), 0);
+
+  // Same student selection/sort used by every other grade sheet in the app.
+  const students = await User
+    .find({ role: 'student', academicYear: year, isActive: true })
+    .select('_id name codePlain studentId group')
+    .populate('group', 'name')
+    .sort({ name: 1 })
+    .collation(ARABIC_NAME_COLLATION)
+    .lean();
+
+  // Single query for every grade across every exam in the section — avoids
+  // N+1 queries regardless of how many exams/students exist.
+  const grades = examIds.length
+    ? await Grade.find({ exam: { $in: examIds } }).select('student exam score').lean()
+    : [];
+
+  // studentId -> accumulated totals across only the exams they were graded in
+  const totals = {};
+  grades.forEach((g) => {
+    const sId = g.student.toString();
+    const max = examMaxMap[g.exam.toString()] || 0;
+    if (!totals[sId]) totals[sId] = { totalScore: 0, totalMax: 0, examsGraded: 0 };
+    totals[sId].totalScore  += g.score || 0;
+    totals[sId].totalMax    += max;
+    totals[sId].examsGraded += 1;
+  });
+
+  // A student with no grade entered in ANY exam of this section is treated
+  // exactly like an ungraded exam elsewhere in the app (entered:false, score
+  // shown as "—") — we don't invent a new "0 by default" behaviour that
+  // doesn't exist anywhere else in the grading system.
+  const sheet = students.map((s) => {
+    const t = totals[s._id.toString()];
+    const entered = !!t && t.examsGraded > 0;
+    const pct = entered && t.totalMax > 0 ? Math.round((t.totalScore / t.totalMax) * 100) : null;
+    return {
+      student:     s,
+      score:       entered ? t.totalScore : null,
+      maxScore:    entered ? t.totalMax   : 0,
+      pct,
+      examsGraded: entered ? t.examsGraded : 0,
+      examsTotal:  exams.length,
+      entered,
+    };
+  });
+
+  return success(res, {
+    section: { _id: section._id, name: section.name },
+    year,
+    examCount:    exams.length,
+    totalMaxScore,
+    sheet,
   });
 });
 
@@ -522,6 +617,7 @@ const getExamRankings = asyncHandler(async (req, res) => {
 
 module.exports = {
   getExamGrades,
+  getSectionTotalGrades,
   enterGrade,
   bulkEnterGrades,
   updateGrade,
