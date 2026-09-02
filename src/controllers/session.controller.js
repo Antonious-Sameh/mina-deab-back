@@ -85,7 +85,7 @@ const getSessionSheet = asyncHandler(async (req, res) => {
 
   // Online students never appear in the center sheet, even if one somehow
   // ended up assigned to a center group.
-  const students = await User
+  const currentMembers = await User
     .find({
       group: session.group, role: 'student', isActive: true,
       $or: [{ studentType: 'center' }, { studentType: { $exists: false } }],
@@ -94,6 +94,37 @@ const getSessionSheet = asyncHandler(async (req, res) => {
     .sort({ name: 1 })
     .collation(ARABIC_NAME_COLLATION)
     .lean();
+
+  // ── الحفاظ على تاريخ الحصص بعد نقل طالب لمجموعة تانية ────────────────────────
+  // الطلاب فوق دول أعضاء المجموعة الحاليين بس. لو طالب كان فعلاً حاضر/غايب في
+  // هذه الحصة بالذات وبعدين المدرس نقله لمجموعة تانية، سجل حضوره (Attendance)
+  // فضل موجود في قاعدة البيانات زي ما هو تمامًا (مفيش أي حذف)، لكنه كان هيختفي
+  // من كشف هذه الحصة القديمة تحديدًا لأنه بقى مش من أعضاء المجموعة الحاليين —
+  // ده كان بيدي انطباع غلط إن تاريخه "ضاع". فبنضيفه هنا للكشف القديم بس (معلّم
+  // بـ transferred:true)، من غير ما نأثر على أي حصة تانية (مفيش سجل حضور له
+  // فيها أصلاً) ومن غير ما نغيّر عضويته الحالية في أي مجموعة.
+  const currentMemberIds = new Set(currentMembers.map((s) => s._id.toString()));
+  const sessionAttendance = await Attendance
+    .find({ session: session._id })
+    .select('student')
+    .lean();
+  const transferredOutIds = [...new Set(
+    sessionAttendance
+      .map((r) => r.student.toString())
+      .filter((id) => !currentMemberIds.has(id))
+  )];
+
+  let students = currentMembers;
+  if (transferredOutIds.length) {
+    const transferredOutStudents = await User
+      .find({ _id: { $in: transferredOutIds }, role: 'student' })
+      .select('_id name codePlain studentId')
+      .lean();
+    students = [
+      ...currentMembers,
+      ...transferredOutStudents.map((s) => ({ ...s, transferred: true })),
+    ];
+  }
 
   const studentIds = students.map((s) => s._id);
 
