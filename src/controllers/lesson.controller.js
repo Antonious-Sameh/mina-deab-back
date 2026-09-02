@@ -104,14 +104,14 @@ const createLesson = asyncHandler(async (req, res) => {
     audienceType,
   } = req.body;
 
-  // نوع الطالب (أونلاين/سنتر) مطلوب بوضوح عند إنشاء الدرس — لو اتبعت قيمة
-  // غير صحيحة أو فاضية بنرفض بدل ما نسيب الدرس بدون تصنيف بالغلط.
+  // نوع الطالب (أونلاين/سنتر/كل الطلاب) مطلوب بوضوح عند إنشاء الدرس — لو
+  // اتبعت قيمة غير صحيحة أو فاضية بنرفض بدل ما نسيب الدرس بدون تصنيف بالغلط.
   if (
     audienceType !== undefined &&
     audienceType !== null &&
-    !["online", "center"].includes(audienceType)
+    !["online", "center", "all"].includes(audienceType)
   ) {
-    return apiError(res, "نوع الطالب يجب أن يكون Online أو Center", 400);
+    return apiError(res, "نوع الطالب يجب أن يكون Online أو Center أو كل الطلاب", 400);
   }
 
   let lessonOrder = order;
@@ -153,9 +153,9 @@ const updateLesson = asyncHandler(async (req, res) => {
   if (
     req.body.audienceType !== undefined &&
     req.body.audienceType !== null &&
-    !["online", "center"].includes(req.body.audienceType)
+    !["online", "center", "all"].includes(req.body.audienceType)
   ) {
-    return apiError(res, "نوع الطالب يجب أن يكون Online أو Center", 400);
+    return apiError(res, "نوع الطالب يجب أن يكون Online أو Center أو كل الطلاب", 400);
   }
 
   const fields = [
@@ -269,7 +269,11 @@ async function assertStudentCanAccessLesson(studentId, lesson) {
     return { ok: false, message: "هذا الدرس غير متاح لمرحلتك الدراسية" };
   }
   const studentType = student.studentType || "center";
-  if (lesson.audienceType && lesson.audienceType !== studentType) {
+  if (
+    lesson.audienceType &&
+    lesson.audienceType !== "all" &&
+    lesson.audienceType !== studentType
+  ) {
     return { ok: false, message: "هذا الدرس غير متاح لنوع اشتراكك" };
   }
   return { ok: true };

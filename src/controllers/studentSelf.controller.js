@@ -399,11 +399,13 @@ const getMyLessons = asyncHandler(async (req, res) => {
   // every student in a year saw every video regardless of their studentType.
   // `audienceType: null` covers legacy lessons created before this field
   // existed, which stay visible to everyone exactly like before.
+  // `audienceType: 'all'` is the explicit "كل الطلاب" choice — visible to
+  // Online and Center students alike, same as null.
   const studentType = student.studentType || 'center';
   const filter = {
     academicYear: student.academicYear,
     published: true,
-    $or: [{ audienceType: studentType }, { audienceType: null }],
+    $or: [{ audienceType: studentType }, { audienceType: null }, { audienceType: 'all' }],
   };
   if (type) filter.type = type;
 

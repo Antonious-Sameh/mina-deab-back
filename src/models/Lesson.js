@@ -37,13 +37,14 @@ const lessonSchema = new mongoose.Schema({
   published:    { type: Boolean, default: false },
 
   // ── NEW: which kind of student this lesson is for ─────────────────────────
-  // 'online' or 'center'. Lessons created BEFORE this field existed have no
-  // value stored (null) — those must always be treated as visible to BOTH
-  // student types, so existing data keeps working exactly as before this
+  // 'online', 'center', or 'all' (كل الطلاب — Online و Center مع بعض).
+  // Lessons created BEFORE this field existed have no value stored (null) —
+  // those must always be treated as visible to BOTH student types, exactly
+  // like 'all', so existing data keeps working exactly as before this
   // feature was added (see getMyLessons in studentSelf.controller.js and
   // getStreamInfo/heartbeat/markWatched in lesson.controller.js, which all
-  // read this the same way: `!lesson.audienceType || lesson.audienceType === student.studentType`).
-  audienceType: { type: String, enum: { values: ['online','center'], message: 'نوع الطالب غير صحيح' }, default: null },
+  // read this the same way: `!lesson.audienceType || lesson.audienceType === 'all' || lesson.audienceType === student.studentType`).
+  audienceType: { type: String, enum: { values: ['online','center','all'], message: 'نوع الطالب غير صحيح' }, default: null },
 
   // ── Content items (new multi-content system) ──────────────────────────────
   items: [contentItemSchema],

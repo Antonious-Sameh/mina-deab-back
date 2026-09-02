@@ -3,7 +3,7 @@
 const mongoose = require('mongoose');
 const Point    = require('../models/Point');
 const User     = require('../models/User');
-const { success, created, notFound, error } = require('../utils/apiResponse');
+const { success, created, notFound } = require('../utils/apiResponse');
 const { asyncHandler } = require('../middleware/error.middleware');
 
 // Helper: calculate balance for a student
@@ -38,19 +38,14 @@ const addPoint = asyncHandler(async (req, res) => {
   const student = await User.findOne({ _id: studentId, role: 'student' }).lean();
   if (!student) return notFound(res, 'الطالب غير موجود');
 
-  // Fetch current balance once — used both for the negative-balance guard
-  // (remove only) and to compute the post-insert balance analytically below,
-  // instead of re-aggregating all points again after the insert.
+  // Fetch current balance once — used to compute the post-insert balance
+  // analytically below, instead of re-aggregating all points again after
+  // the insert.
+  // NOTE: negative balances are allowed on purpose — a student's balance can
+  // go below zero when a deduction exceeds their current points (e.g. 0 - 2
+  // = -2), and further additions/removals continue to work correctly from
+  // that negative balance (e.g. -2 + 5 = 3). Do not reintroduce a guard here.
   const current = await calcBalance(studentId);
-
-  // Guard: don't let balance go negative
-  if (type === 'remove' && amount > current.balance) {
-    return error(
-      res,
-      `لا يمكن خصم ${amount} نقطة — الرصيد الحالي: ${current.balance} نقطة`,
-      400
-    );
-  }
 
   const point = await Point.create({
     student:   studentId,
