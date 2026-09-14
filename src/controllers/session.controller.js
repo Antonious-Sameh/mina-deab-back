@@ -116,8 +116,15 @@ const getSessionSheet = asyncHandler(async (req, res) => {
 
   let students = currentMembers;
   if (transferredOutIds.length) {
+    // مهم: هنا لازم نفرّق بين نوعين مختلفين من "مش موجود في أعضاء المجموعة
+    // الحاليين" —
+    //  1) الطالب اتنقل فعلاً لمجموعة تانية (حسابه لسه شغال isActive:true)
+    //     → ده اللي المفروض يظهر بعلامة "منقول" عشان تاريخ الحصة يفضل واضح.
+    //  2) الطالب حسابه اتعلّق (isActive:false) فقط، ولسه في نفس المجموعة
+    //     → ده لازم يختفي بالكامل من الكشف، مش يتحط بعلامة "منقول" غلط.
+    // فبنشترط isActive:true هنا عشان النوع التاني ميترجعش أصلاً.
     const transferredOutStudents = await User
-      .find({ _id: { $in: transferredOutIds }, role: 'student' })
+      .find({ _id: { $in: transferredOutIds }, role: 'student', isActive: true })
       .select('_id name codePlain studentId')
       .lean();
     students = [
