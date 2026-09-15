@@ -141,8 +141,8 @@ const deleteStudent = asyncHandler(async (req, res) => {
   const sid = student._id;
 
   // Cascade delete all related data
-  const [Attendance, Payment, Grade, Point, Note, WatchLog, ExamSubmission] =
-    ['Attendance','Payment','Grade','Point','Note','WatchLog','ExamSubmission']
+  const [Attendance, Payment, Grade, Point, Note, WatchLog, ExamSubmission, Passkey] =
+    ['Attendance','Payment','Grade','Point','Note','WatchLog','ExamSubmission','Passkey']
       .map(m => { try { return mongoose.model(m); } catch { return null; } });
 
   await Promise.allSettled([
@@ -155,6 +155,8 @@ const deleteStudent = asyncHandler(async (req, res) => {
     // For notes: remove from readBy arrays + delete private notes
     Note ? Note.updateMany({}, { $pull: { readBy: sid } })       : null,
     Note ? Note.deleteMany({ type: 'private', student: sid })    : null,
+    // حذف كامل للحساب = لازم أي بصمة (Passkey) مسجّلة عليه تتمسح معاه.
+    Passkey ? Passkey.deleteMany({ user: sid })                  : null,
   ]);
 
   // Hard delete the user
@@ -191,6 +193,16 @@ const resetDevice = asyncHandler(async (req, res) => {
   student.deviceId     = null;
   student.refreshToken = null;
   await student.save();
+
+  // الجهاز القديم بقى غير مربوط بالحساب — أي بصمة (Passkey) كانت مسجّلة
+  // عليه لازم تتمسح فورًا، عشان محدّش يقدر يستخدمها للدخول تاني. (نفس
+  // التحقق ده بيتعمل برضه دفاعيًا وقت أي محاولة دخول بالبصمة في
+  // passkey.controller.js → loginVerify، لكن مسحها هنا فورًا أنضف.)
+  try {
+    const Passkey = mongoose.model('Passkey');
+    await Passkey.deleteMany({ user: student._id });
+  } catch { /* الموديل مش مسجّل — تجاهل بأمان */ }
+
   return success(res, {}, 'تم إعادة تعيين الجهاز — سيتم ربط الحساب بأول جهاز يسجل دخول بعد الآن');
 });
 

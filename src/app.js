@@ -31,6 +31,7 @@ require('./models/HeroAlbum'); // register HeroAlbum model
 const studentSelfRoutes = require('./routes/studentSelf.routes');
 const accountRoutes     = require('./routes/account.routes');
 const fileRoutes        = require('./routes/file.routes');
+const passkeyRoutes     = require('./routes/passkey.routes');
 const compression = require('compression');
 
 const app = express();
@@ -145,6 +146,11 @@ app.get('/api/health', (req, res) => {
 // /login route (see comment there for why) — it used to be applied here to
 // the entire /api/auth router, catching background /refresh calls too.
 app.use('/api/auth', authRoutes);
+
+// الدخول بالبصمة (WebAuthn) — اختياري وإضافي بالكامل، مبيلمسش نظام الدخول
+// العادي أعلاه؛ الـ rate limiting بتاعه معرّف جوه passkey.routes.js نفسه
+// بنفس نمط loginLimiter (لكل route لوحده، مش على الراوتر كله).
+app.use('/api/auth/passkey', passkeyRoutes);
 
 // Teacher-only routes (protect + isTeacher applied per-router or per-route)
 app.use('/api/students',   protect, isTeacher, studentRoutes);

@@ -1,7 +1,7 @@
 {
   "name": "khatwa-plus-backend",
   "version": "1.0.0",
-  "description": "Khatwa Plus - Backend API (MERN Stack)",
+  "description": "El Abdaaa - Backend API (MERN Stack)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -12,6 +12,7 @@
     "fix-attendance-indexes": "node src/utils/fixAttendanceIndexes.js"
   },
   "dependencies": {
+    "@simplewebauthn/server": "^14.0.2",
     "bcryptjs": "^2.4.3",
     "cloudinary": "^2.5.1",
     "compression": "^1.8.1",
@@ -31,6 +32,6 @@
     "nodemon": "^3.1.4"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   }
 }
