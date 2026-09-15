@@ -17,6 +17,19 @@ function validateEnv() {
     );
     process.exit(1);
   }
+
+  // COOKIE_SECRET مش في القائمة اللي فوق لأن فيه fallback ليه، فمش بيوقف
+  // السيرفر — لكن لو حصل مش موجود في الإنتاج، ده معناه إن أي حاجة بتعتمد
+  // على كوكيز موقّعة (signed cookies، زي challenge الـ Passkey) هتفشل، وده
+  // نوع من الأخطاء بيتخبى بسهولة وراء الـ fallback الصامت. التحذير ده
+  // بيبان في لوج فيرسيل/السيرفر فورًا عشان تعرف السبب الحقيقي بدل التخمين.
+  if (process.env.NODE_ENV === 'production' && !process.env.COOKIE_SECRET) {
+    console.warn(
+      '\n⚠️  COOKIE_SECRET غير مضبوط في بيئة الإنتاج — بيتم استخدام قيمة ' +
+      'افتراضية مؤقتة. لو فيه مشاكل في الكوكيز الموقّعة (زي تفعيل البصمة)، ' +
+      'أضف COOKIE_SECRET في متغيرات البيئة الخاصة بـ Production تحديدًا.\n'
+    );
+  }
 }
 
 module.exports = {
