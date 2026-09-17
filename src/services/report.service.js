@@ -104,9 +104,17 @@ const getPaymentSummary = async (studentId) => {
 const getGrades = async (studentId) => {
   try {
     const Grade = mongoose.model('Grade');
+    // BUGFIX (display-only, additive): نحتاج examType + section عشان نقدر
+    // نجمّع درجات الامتحانات الورقية حسب القسم في صفحة التقرير — نفس الحقول
+    // بالظبط اللي بيتقروا فعلاً في studentSelf.controller.js → getMyGrades،
+    // مفيش أي حقل جديد ولا تغيير في شكل الاستعلام نفسه أو منطق الحساب تحت.
     const grades = await Grade
       .find({ student: studentId })
-      .populate('exam', 'title maxScore examDate')
+      .populate({
+        path: 'exam',
+        select: 'title maxScore examDate examType section',
+        populate: { path: 'section', select: 'name' },
+      })
       .sort({ createdAt: -1 })
       .lean();
 
