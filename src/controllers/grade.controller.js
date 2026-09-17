@@ -237,6 +237,19 @@ const enterGrade = asyncHandler(async (req, res) => {
 
 // ── POST /api/grades/bulk ─────────────────────────────────────────────────────
 // Bulk upsert grades for an entire exam — one request for the whole sheet.
+//
+// ── BUGFIX (paper grade edits silently "reverting") ──────────────────────────
+// Before: ANY single row with score > exam.maxScore rejected the WHOLE batch
+// (400) — nothing was written to MongoDB, not even the other, perfectly valid
+// edits in the same save. The teacher's screen kept showing the typed value
+// locally (unsaved React state), looking exactly like a successful save, while
+// nothing had actually persisted — the next real fetch (a refresh, the
+// student's own page, another browser) then showed the old value, looking
+// like the grade "reverted".
+// Now: each row is validated independently. Valid rows are written to
+// MongoDB regardless of what happens with the others, and the response tells
+// the caller exactly which student IDs were saved and which failed (with why)
+// — so the frontend can stop pretending an unsaved edit is safe.
 const bulkEnterGrades = asyncHandler(async (req, res) => {
   const { examId, grades } = req.body;
   const teacherId = req.user.userId;
@@ -248,38 +261,84 @@ const bulkEnterGrades = asyncHandler(async (req, res) => {
     return error(res, 'لا يمكن إدخال درجات لامتحان مغلق', 400);
   }
 
-  // Validate all scores within range
-  const invalid = grades.filter((g) => g.score > exam.maxScore);
-  if (invalid.length > 0) {
-    return error(
-      res,
-      `${invalid.length} درجة تتجاوز الدرجة الكاملة (${exam.maxScore})`,
-      400
-    );
+  // Split into per-row valid / invalid instead of failing the whole batch.
+  const validGrades = [];
+  const failed = []; // [{ studentId, reason }]
+
+  for (const g of grades) {
+    if (g.score > exam.maxScore) {
+      failed.push({
+        studentId: g.studentId,
+        reason: `الدرجة (${g.score}) أكبر من الدرجة الكاملة (${exam.maxScore})`,
+      });
+      continue;
+    }
+    validGrades.push(g);
   }
 
-  const ops = grades.map(({ studentId, score, note }) => ({
-    updateOne: {
-      filter: { student: studentId, exam: examId },
-      update: {
-        $set: {
-          score,
-          note:        note || null,
-          correctedBy: teacherId,
-        },
-      },
-      upsert: true,
-    },
-  }));
+  let inserted = 0;
+  let updated  = 0;
 
-  const result = await Grade.bulkWrite(ops, { ordered: false });
+  if (validGrades.length > 0) {
+    const ops = validGrades.map(({ studentId, score, note }) => ({
+      updateOne: {
+        filter: { student: studentId, exam: examId },
+        update: {
+          $set: {
+            score,
+            note:        note || null,
+            correctedBy: teacherId,
+          },
+        },
+        upsert: true,
+      },
+    }));
+
+    try {
+      const result = await Grade.bulkWrite(ops, { ordered: false });
+      inserted = result.upsertedCount;
+      updated  = result.modifiedCount;
+    } catch (err) {
+      // ordered:false still attempts every op even if one fails — the driver
+      // throws a BulkWriteError regardless, but the partial result (what DID
+      // succeed) is attached to it. We must not lose visibility into the
+      // rows that were actually saved just because one op had an issue
+      // (e.g. a rare duplicate-key race on concurrent saves).
+      const partial = err?.result;
+      if (!partial) throw err; // genuinely unexpected — let error middleware handle it
+
+      inserted = partial.upsertedCount ?? partial.nUpserted ?? 0;
+      updated  = partial.modifiedCount ?? partial.nModified ?? 0;
+
+      const writeErrors = partial.getWriteErrors?.() || err.writeErrors || [];
+      writeErrors.forEach((we) => {
+        const failedOp = validGrades[we.index];
+        if (failedOp) {
+          failed.push({
+            studentId: failedOp.studentId,
+            reason: 'فشل الحفظ في قاعدة البيانات — حاول مرة أخرى',
+          });
+        }
+      });
+    }
+  }
+
+  const failedIds = new Set(failed.map(f => String(f.studentId)));
+  const savedStudentIds = validGrades
+    .map(g => g.studentId)
+    .filter(id => !failedIds.has(String(id)));
 
   return success(res, {
     examId,
-    submitted: grades.length,
-    inserted:  result.upsertedCount,
-    updated:   result.modifiedCount,
-  }, `تم حفظ ${grades.length} درجة بنجاح`);
+    submitted:       grades.length,
+    savedCount:      savedStudentIds.length,
+    failedCount:     failed.length,
+    inserted, updated,
+    savedStudentIds, // studentIds actually persisted in MongoDB this request
+    failed,          // [{ studentId, reason }] — NOT persisted, must stay editable
+  }, failed.length > 0
+      ? `تم حفظ ${savedStudentIds.length} من ${grades.length} درجة — ${failed.length} لم تُحفظ`
+      : `تم حفظ ${grades.length} درجة بنجاح`);
 });
 
 // ── PUT /api/grades/:id ───────────────────────────────────────────────────────
