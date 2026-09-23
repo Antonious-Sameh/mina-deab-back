@@ -32,6 +32,7 @@ const studentSelfRoutes = require('./routes/studentSelf.routes');
 const accountRoutes     = require('./routes/account.routes');
 const fileRoutes        = require('./routes/file.routes');
 const passkeyRoutes     = require('./routes/passkey.routes');
+const adminGatePasskeyRoutes = require('./routes/adminGatePasskey.routes');
 const compression = require('compression');
 
 const app = express();
@@ -178,6 +179,12 @@ app.use('/api/heroes',     heroRoutes);
 
 // البروفايل والحساب الشخصي (محروس داخلياً بـ protect جوة ملف الـ routes بتاعه)
 app.use('/api/account',    accountRoutes);
+
+// بصمة الصفحات المحمية (اختيارية، بديل كلمة مرور AdminPasswordGate) — مستقلة
+// تمامًا عن بصمة تسجيل الدخول أعلاه، وعن /api/account (مسار منفصل تمامًا
+// بدل ما يبقى فرعي منه، عشان نضمن مفيش أي احتمال تداخل في الـ routing مع
+// accountRoutes الموجودة بالفعل). محروسة داخلياً بـ protect جوة الملف نفسه.
+app.use('/api/admin-gate-passkey', adminGatePasskeyRoutes);
 
 // لوحة تحكم الطالب الخاصة (مؤمنة بالكامل للطالب فقط)
 app.use('/api/student',    protect, isStudent, studentSelfRoutes);
