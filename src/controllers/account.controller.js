@@ -146,7 +146,35 @@ const verifyAdminPassword = asyncHandler(async (req, res) => {
   return success(res, { valid });
 });
 
+// ── وضع الانتقال المؤقت (Device Transition Mode) ─────────────────────────────
+// إعداد بسيط على حساب المدرس بس، بيتحكم في تشدد فحص "جهاز واحد للطالب" في
+// auth.controller.js مؤقتًا — راجع التعليق هناك وفي User.js لتفاصيل السلوك.
+
+// GET /api/account/device-transition-mode
+const getDeviceTransitionMode = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'teacher') return apiError(res, 'غير مصرح', 403);
+  const user = await User.findById(req.user.userId).select('deviceTransitionMode').lean();
+  if (!user) return notFound(res, 'المستخدم غير موجود');
+  return success(res, { enabled: !!user.deviceTransitionMode });
+});
+
+// PATCH /api/account/device-transition-mode
+const updateDeviceTransitionMode = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'teacher') return apiError(res, 'غير مصرح', 403);
+  const { enabled } = req.body;
+  const user = await User.findById(req.user.userId);
+  if (!user) return notFound(res, 'المستخدم غير موجود');
+  user.deviceTransitionMode = !!enabled;
+  await user.save({ validateBeforeSave: false });
+  return success(
+    res,
+    { enabled: user.deviceTransitionMode },
+    user.deviceTransitionMode ? 'تم تفعيل وضع الانتقال' : 'تم إيقاف وضع الانتقال'
+  );
+});
+
 module.exports = {
   getAccount, uploadAvatar: uploadAvatarCtrl, removeAvatar, changeCode, updateInfo, getTeacherInfo,
   getAdminPassword, updateAdminPassword, verifyAdminPassword,
+  getDeviceTransitionMode, updateDeviceTransitionMode,
 };

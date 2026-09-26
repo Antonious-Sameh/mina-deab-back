@@ -91,7 +91,18 @@ const login = asyncHandler(async (req, res) => {
     if (!user.deviceId) {
       user.deviceId = deviceId;
     } else if (user.deviceId !== deviceId) {
-      return unauthorized(res, 'هذا الحساب مرتبط بجهاز آخر، برجاء التواصل مع المدرس');
+      // ── وضع الانتقال المؤقت (Device Transition Mode) ────────────────────
+      // بنتحقق من إعداد المدرس بس في حالة الاختلاف فعليًا (مش في كل تسجيل
+      // دخول عادي) — عشان مفيش أي تكلفة إضافية على المسار الطبيعي. لو
+      // المدرس مفعّل الوضع ده (مثلًا وقت انتقال الطلاب لاستخدام تطبيق
+      // الأندرويد الجديد)، بنسمح بالدخول ونحدّث "آخر جهاز" بدل الرفض —
+      // ده مؤقت بالكامل ومفيش أي علاقة له بـ resetDevice اليدوي.
+      const teacher = await User.findOne({ role: 'teacher' }).select('deviceTransitionMode').lean();
+      if (teacher?.deviceTransitionMode) {
+        user.deviceId = deviceId;
+      } else {
+        return unauthorized(res, 'هذا الحساب مرتبط بجهاز آخر، برجاء التواصل مع المدرس');
+      }
     }
   }
 

@@ -1,7 +1,7 @@
 // src/routes/account.routes.js
 const express = require('express');
 const router  = express.Router();
-const { getAccount, uploadAvatar: uploadAvatarCtrl, removeAvatar, changeCode, updateInfo, getTeacherInfo, getAdminPassword, updateAdminPassword, verifyAdminPassword } = require('../controllers/account.controller');
+const { getAccount, uploadAvatar: uploadAvatarCtrl, removeAvatar, changeCode, updateInfo, getTeacherInfo, getAdminPassword, updateAdminPassword, verifyAdminPassword, getDeviceTransitionMode, updateDeviceTransitionMode } = require('../controllers/account.controller');
 const { protect, isTeacher } = require('../middleware/auth.middleware');
 const { uploadAvatar }       = require('../config/multer');
 
@@ -30,5 +30,9 @@ router.patch('/update-info', updateInfo);
 router.get('/admin-password',            getAdminPassword);
 router.patch('/admin-password',          updateAdminPassword);
 router.post('/verify-admin-password',    verifyAdminPassword);
+
+// وضع الانتقال المؤقت لجهاز الطالب (مدرس فقط — الفحص مطبّق كمان داخل الـ controller)
+router.get('/device-transition-mode',   getDeviceTransitionMode);
+router.patch('/device-transition-mode', updateDeviceTransitionMode);
 
 module.exports = router;
