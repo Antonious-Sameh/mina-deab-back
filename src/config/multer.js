@@ -52,7 +52,8 @@ const uploadHero = multer({
       folder:          'khatwa-plus/heroes',
       allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
       resource_type:   'image',
-      transformation:  [{ width: 600, height: 600, crop: 'fill' }],
+      // الصورة بتتحفظ كاملة بنسبتها الأصلية (من غير قص) وبجودة عالية
+      transformation:  [{ width: 1600, height: 1600, crop: 'limit', quality: 'auto:best' }],
     },
   }),
   limits: { fileSize: 4 * 1024 * 1024 }, // 4 MB

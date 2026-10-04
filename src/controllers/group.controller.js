@@ -102,7 +102,7 @@ const getGroupStudents = asyncHandler(async (req, res) => {
 
   const students = await User
     .find({ group: req.params.id, role: 'student' })
-    .select('name codePlain phone academicYear isActive avatar')
+    .select('name codePlain phone academicYear isActive avatar studentId studentType')
     .sort({ name: 1 })
     .lean();
 
