@@ -57,7 +57,7 @@ const destroyFromCloudinary = async (url, resourceType = 'image') => {
 
 // ── GET /api/exams?year=&status= ──────────────────────────────────────────────
 const getExams = asyncHandler(async (req, res) => {
-  const { year, status } = req.query;
+  const { year, status, withMySubmission } = req.query;
   const filter = {};
   if (year)   filter.academicYear = year;
   if (status) filter.status = status;
@@ -73,8 +73,22 @@ const getExams = asyncHandler(async (req, res) => {
   const countMap = {};
   counts.forEach(c => { countMap[c._id.toString()] = c.count; });
 
+  // Opt-in (students only): attach the caller's own submission to each exam in a
+  // single query, so the client doesn't need one /my-result request per exam.
+  // Always scoped to the authenticated user (req.user.userId), never client input.
+  let mySubMap = null;
+  if (withMySubmission === '1' && req.user?.role === 'student') {
+    const mine = await ExamSubmission.find({ exam: { $in: examIds }, student: req.user.userId }).lean();
+    mySubMap = {};
+    mine.forEach(s => { mySubMap[s.exam.toString()] = s; });
+  }
+
   return success(res, {
-    exams: exams.map(e => ({ ...e, submissionsCount: countMap[e._id.toString()] || 0 })),
+    exams: exams.map(e => {
+      const item = { ...e, submissionsCount: countMap[e._id.toString()] || 0 };
+      if (mySubMap) item.mySubmission = mySubMap[e._id.toString()] || null;
+      return item;
+    }),
     total: exams.length,
   });
 });
