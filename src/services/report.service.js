@@ -88,12 +88,25 @@ const getPaymentSummary = async (studentId) => {
     const totalRequired = payments.reduce((s, p) => s + p.requiredAmount, 0);
     const totalPaid     = payments.reduce((s, p) => s + p.paidAmount,     0);
 
+    // BUGFIX: الحالة كانت بتتحسب من الإجمالي الكلي (totalRequired === totalPaid):
+    //  1) طالب ملوش أي سجل مدفوعات (0 === 0) كان بيظهر "مكتمل" غلط — السجل بيتعمل
+    //     أول ما المدرس يسجّل أول دفعة، فقبلها مفيش سجل أصلاً.
+    //  2) زيادة في شهر كانت بتغطي نقص في شهر تاني (الإجمالي بيتساوى فيظهر "مكتمل").
+    // دلوقتي بنحسب المتبقي لكل شهر لوحده (من غير ما الزيادة تتخصم من شهر تاني)،
+    // والحالة "مكتمل" فقط لو فيه سجلات ومفيش أي شهر عليه متبقي. الحقول
+    // (totalRequired/totalPaid/months) كما هي، ومفيش أي تغيير في البيانات المخزنة.
+    const totalRemaining = payments.reduce(
+      (s, p) => s + Math.max(0, p.requiredAmount - p.paidAmount), 0
+    );
+
     return {
       totalRequired,
       totalPaid,
-      totalRemaining: totalRequired - totalPaid,
+      totalRemaining,
       months:         payments.length,
-      status:         totalRequired === totalPaid ? 'مكتمل' : 'غير مكتمل',
+      status:         payments.length === 0
+        ? 'لا توجد مدفوعات مسجلة'
+        : (totalRemaining === 0 ? 'مكتمل' : 'غير مكتمل'),
     };
   } catch {
     return { totalRequired: 0, totalPaid: 0, totalRemaining: 0, months: 0, status: 'غير محدد' };
